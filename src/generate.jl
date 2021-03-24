@@ -101,6 +101,15 @@ function detect_service(proto::String)
     package, service
 end
 
+"""
+    generate(proto::String; outdir::String=pwd())
+
+Generate a gRPC client from protobuf specification file.
+
+- `proto`: Path to the protobuf specification to used.
+- `outdir`: Directory to write generated code into, created if not present
+    already. Existing files if any will be overwtitten.
+"""
 function generate(proto::String; outdir::String=pwd())
     if !isfile(proto)
         throw(ArgumentError("No such file - $proto"))

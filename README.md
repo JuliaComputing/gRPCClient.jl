@@ -2,7 +2,7 @@
 
 A Julia gRPC Client.
 
-### Generating gRPC Service Client
+## Generating gRPC Service Client
 
 gRPC services are declared in `.proto` files. Use `gRPCClient.generate` to generate client code from specification files.
 
@@ -29,15 +29,19 @@ julia> include("RouteGuideClients/RouteGuideClients.jl");
 
 julia> using .RouteGuideClients
 
-julia> Base.show(io::IO, location::RouteGuideClients.Point) = print(io, string("[", location.latitude, ", ", location.longitude, "]"))
+julia> import .RouteGuideClients: Point, Feature, GetFeature
 
-julia> Base.show(io::IO, feature::RouteGuideClients.Feature) = print(io, string(feature.name, " - ", feature.location))
+julia> Base.show(io::IO, location::Point) =
+    print(io, string("[", location.latitude, ", ", location.longitude, "]"))
+
+julia> Base.show(io::IO, feature::Feature) =
+    print(io, string(feature.name, " - ", feature.location))
 
 julia> client = RouteGuideBlockingClient("https://server:10000/");
 
-julia> point = RouteGuideClients.Point(; latitude=409146138, longitude=-746188906); # API request parameter
+julia> point = Point(; latitude=409146138, longitude=-746188906); # request param
 
-julia> feature, status_future = RouteGuideClients.GetFeature(client, point);
+julia> feature, status_future = GetFeature(client, point);
 
 julia> gRPCCheck(status_future) # check status of request
 true
@@ -45,3 +49,76 @@ true
 julia> feature # this is the API return value
 Berkshire Valley Management Area Trail, Jefferson, NJ, USA - [409146138, -746188906]
 ```
+
+## Internals
+
+The generated gRPC client (`RouteGuideBlockingClient` in the example above)
+uses a gRPC controller and channel behind the scenes to communicate with
+the server.
+
+### `gRPCController`
+
+A `gRPCController` contains settings to control the behavior of gRPC requests.
+Each gRPC client holds an instance of the controller created using keyword
+arguments passed to its constructor.
+
+```julia
+gRPCController(;
+    [ maxage::Int = 0, ]
+    [ keepalive::Int64 = 60, ]
+    [ request_timeout::Real = Inf, ]
+    [ connect_timeout::Real = 0, ]
+    [ verify_peer::Bool = true, ]
+    [ verbose::Bool = false, ]
+)
+```
+
+- `maxage`: maximum age (seconds) of a connection beyond which it will not
+   be reused (default 180 seconds, same as setting this to 0).
+- `keepalive`: interval (seconds) in which to send TCP keepalive messages on
+   the connection (default 60 seconds).
+- `request_timeout`: request timeout (seconds)
+- `connect_timeout`: connect timeout (seconds) (default is 300 seconds, same
+   as setting this to 0)
+- `verify_peer`: whether to verify the peer (server) certificate (default true)
+- `verbose`: whether to print out verbose communication logs (default false)
+
+### `gRPCChannel`
+
+```julia
+gRPCChannel(baseurl::String)
+```
+
+`gRPCChannel` represents a connection to a specific service endpoint
+(service `baseurl`) of a gRPC server.
+
+A channel also usually has a single network connection backing it and
+multiple streams of requests can flow through it at any time. The number
+of streams that can be multiplexed is negotiated between the client and
+the server.
+
+### `gRPCStatus`
+
+`gRPCStatus` represents the status of a request. It has the following fields:
+
+- `success`: whether the request was completed successfully.
+- `message`: any error message if request was not successful
+
+### `gRPCException`
+
+Every gRPC request returns the result and a future representing the status
+of the gRPC request. Use the `gRPCCheck` method on the status future to check
+the request status and throw a `gRPCException` if it is not successful.
+
+A `gRPCException` has a member named `message` that may contain an error
+message if request was not successful.
+
+### `gRPCCheck`
+
+```julia
+gRPCCheck(status; throw_error::Bool=true)
+```
+
+Method to check the response of a gRPC request and raise a `gRPCException`
+if it has failed. If `throw_error` is set to false, returns `true` or `false`
+indicating success instead.

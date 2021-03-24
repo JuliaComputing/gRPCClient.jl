@@ -20,7 +20,7 @@ end
     end
 
 Every gRPC request returns the result and a future representing the status
-of the gRPC request. Use the `check` method on the status future to check
+of the gRPC request. Use the `gRPCCheck` method on the status future to check
 the request status and throw a `gRPCException` if it is not successful.
 
 A `gRPCException` has the following members:
