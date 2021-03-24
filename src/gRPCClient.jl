@@ -11,6 +11,7 @@ export gRPCController, gRPCChannel, gRPCException, gRPCStatus, gRPCCheck
 
 include("curl.jl")
 include("grpc.jl")
+include("generate.jl")
 
 function __init__()
     GRPC_STATIC_HEADERS[] = grpc_headers()
