@@ -77,8 +77,8 @@ struct gRPCController <: ProtoRpcController
     verbose::Bool
 
     function gRPCController(;
-            maxage::Int = 0,
-            keepalive::Int64 = 60,
+            maxage::Integer = 0,
+            keepalive::Integer = 60,
             request_timeout::Real = Inf,
             connect_timeout::Real = 0,
             verify_peer::Bool = true,

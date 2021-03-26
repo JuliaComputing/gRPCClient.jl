@@ -2,6 +2,12 @@
 
 A Julia gRPC Client.
 
+GitHub Actions : [![Build Status](https://github.com/JuliaComputing/gRPCClient.jl/workflows/CI/badge.svg)](https://github.com/JuliaComputing/gRPCClient.jl/actions?query=workflow%3ACI+branch%3Amaster)
+
+[![Coverage Status](https://coveralls.io/repos/JuliaComputing/gRPCClient.jl/badge.svg?branch=master)](https://coveralls.io/r/JuliaComputing/gRPCClient.jl?branch=master)
+[![codecov.io](http://codecov.io/github/JuliaComputing/gRPCClient.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaComputing/gRPCClient.jl?branch=master)
+
+
 ## Generating gRPC Service Client
 
 gRPC services are declared in `.proto` files. Use `gRPCClient.generate` to generate client code from specification files.
