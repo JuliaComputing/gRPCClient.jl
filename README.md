@@ -74,7 +74,6 @@ gRPCController(;
     [ keepalive::Int64 = 60, ]
     [ request_timeout::Real = Inf, ]
     [ connect_timeout::Real = 0, ]
-    [ verify_peer::Bool = true, ]
     [ verbose::Bool = false, ]
 )
 ```
@@ -86,7 +85,6 @@ gRPCController(;
 - `request_timeout`: request timeout (seconds)
 - `connect_timeout`: connect timeout (seconds) (default is 300 seconds, same
    as setting this to 0)
-- `verify_peer`: whether to verify the peer (server) certificate (default true)
 - `verbose`: whether to print out verbose communication logs (default false)
 
 ### `gRPCChannel`

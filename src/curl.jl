@@ -38,13 +38,12 @@ function grpc_headers()
     headers
 end
 
-function easy_handle(maxage::Clong, keepalive::Clong, verify_peer::Bool)
+function easy_handle(maxage::Clong, keepalive::Clong)
     easy = Curl.Easy()
     Curl.setopt(easy, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0)
     Curl.setopt(easy, CURLOPT_PIPEWAIT, Clong(1))
     Curl.setopt(easy, CURLOPT_POST, Clong(1))
     Curl.setopt(easy, CURLOPT_HTTPHEADER, GRPC_STATIC_HEADERS[])
-    Curl.set_ssl_verify(easy, verify_peer)
     if maxage > 0
         Curl.setopt(easy, CURLOPT_MAXAGE_CONN, maxage)
     end
@@ -109,9 +108,8 @@ function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, o
         keepalive::Clong = 60,
         request_timeout::Real = Inf,
         connect_timeout::Real = 0,
-        verify_peer::Bool = true,
         verbose::Bool = false)::gRPCStatus where {T1 <: ProtoType, T2 <: ProtoType}
-    Curl.with_handle(easy_handle(maxage, keepalive, verify_peer)) do easy
+    Curl.with_handle(easy_handle(maxage, keepalive)) do easy
         # setup the request
         Curl.set_url(easy, url)
         Curl.set_timeout(easy, request_timeout)

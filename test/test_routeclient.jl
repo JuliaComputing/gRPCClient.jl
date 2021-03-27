@@ -120,14 +120,14 @@ function test_async_get_feature(client::RouteGuideClient)
 end
 
 function test_async_client(server_endpoint::String)
-    client = RouteGuideClient(server_endpoint; verbose=false, verify_peer=false)
+    client = RouteGuideClient(server_endpoint; verbose=false)
     @testset "GetFeature" begin
         test_async_get_feature(client)
     end
 end
 
 function test_blocking_client(server_endpoint::String)
-    client = RouteGuideBlockingClient(server_endpoint; verbose=false, verify_peer=false)
+    client = RouteGuideBlockingClient(server_endpoint; verbose=false)
     @info("testing GetFeature")
     @testset "GetFeature" begin
         test_get_feature(client)

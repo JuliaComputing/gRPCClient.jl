@@ -17,6 +17,11 @@ if isempty(get(ENV, "SSL_CERT_FILE", ""))
     ENV["SSL_CERT_FILE"] = joinpath(@__DIR__, "certgen", "ca.crt")
 end
 
+# switch off host verification for tests
+if isempty(get(ENV, "JULIA_NO_VERIFY_HOSTS", ""))
+    ENV["JULIA_NO_VERIFY_HOSTS"] = "**"
+end
+
 server_endpoint = isempty(ARGS) ? "https://$(strip(read(`hostname -f`, String))):10000/" : ARGS[1]
 @info("server endpoint: $server_endpoint")
 
