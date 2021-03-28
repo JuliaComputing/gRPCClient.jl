@@ -2,10 +2,10 @@
 
 A Julia gRPC Client.
 
-GitHub Actions : [![Build Status](https://github.com/JuliaComputing/gRPCClient.jl/workflows/CI/badge.svg)](https://github.com/JuliaComputing/gRPCClient.jl/actions?query=workflow%3ACI+branch%3Amaster)
+GitHub Actions : [![Build Status](https://github.com/JuliaComputing/gRPCClient.jl/workflows/CI/badge.svg)](https://github.com/JuliaComputing/gRPCClient.jl/actions?query=workflow%3ACI+branch%3Amain)
 
-[![Coverage Status](https://coveralls.io/repos/JuliaComputing/gRPCClient.jl/badge.svg?branch=master)](https://coveralls.io/r/JuliaComputing/gRPCClient.jl?branch=master)
-[![codecov.io](http://codecov.io/github/JuliaComputing/gRPCClient.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaComputing/gRPCClient.jl?branch=master)
+[![Coverage Status](https://coveralls.io/repos/JuliaComputing/gRPCClient.jl/badge.svg?branch=main)](https://coveralls.io/r/JuliaComputing/gRPCClient.jl?branch=main)
+[![codecov.io](http://codecov.io/github/JuliaComputing/gRPCClient.jl/coverage.svg?branch=main)](http://codecov.io/github/JuliaComputing/gRPCClient.jl?branch=main)
 
 
 ## Generating gRPC Service Client
