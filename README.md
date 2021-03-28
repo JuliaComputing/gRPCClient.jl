@@ -2,6 +2,12 @@
 
 A Julia gRPC Client.
 
+GitHub Actions : [![Build Status](https://github.com/JuliaComputing/gRPCClient.jl/workflows/CI/badge.svg)](https://github.com/JuliaComputing/gRPCClient.jl/actions?query=workflow%3ACI+branch%3Amaster)
+
+[![Coverage Status](https://coveralls.io/repos/JuliaComputing/gRPCClient.jl/badge.svg?branch=master)](https://coveralls.io/r/JuliaComputing/gRPCClient.jl?branch=master)
+[![codecov.io](http://codecov.io/github/JuliaComputing/gRPCClient.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaComputing/gRPCClient.jl?branch=master)
+
+
 ## Generating gRPC Service Client
 
 gRPC services are declared in `.proto` files. Use `gRPCClient.generate` to generate client code from specification files.
@@ -68,7 +74,6 @@ gRPCController(;
     [ keepalive::Int64 = 60, ]
     [ request_timeout::Real = Inf, ]
     [ connect_timeout::Real = 0, ]
-    [ verify_peer::Bool = true, ]
     [ verbose::Bool = false, ]
 )
 ```
@@ -80,7 +85,6 @@ gRPCController(;
 - `request_timeout`: request timeout (seconds)
 - `connect_timeout`: connect timeout (seconds) (default is 300 seconds, same
    as setting this to 0)
-- `verify_peer`: whether to verify the peer (server) certificate (default true)
 - `verbose`: whether to print out verbose communication logs (default false)
 
 ### `gRPCChannel`

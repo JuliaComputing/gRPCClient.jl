@@ -1,5 +1,23 @@
 const GRPC_STATIC_HEADERS = Ref{Ptr{Nothing}}(C_NULL)
 
+#=
+const SEND_BUFFER_SZ = 1024 * 1024
+function buffer_send_data(input::Channel{T}) where T <: ProtoType
+    data = nothing
+    if isready(input)
+        iob = IOBuffer()
+        while isready(input) && (iob.size < SEND_BUFFER_SZ)
+            write(iob, to_delimited_message_bytes(take!(input)))
+            yield()
+        end
+        data = take!(iob)
+    elseif isopen(input)
+        data = UInt8[]
+    end
+    data
+end
+=#
+
 function send_data(easy::Curl.Easy, input::Channel{T}) where T <: ProtoType
     while true
         data = isready(input) ? to_delimited_message_bytes(take!(input)) : isopen(input) ? UInt8[] : nothing
@@ -20,20 +38,19 @@ function grpc_headers()
     headers
 end
 
-function easy_handle(maxage, keepalive, verify_peer)
+function easy_handle(maxage::Clong, keepalive::Clong)
     easy = Curl.Easy()
     Curl.setopt(easy, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0)
     Curl.setopt(easy, CURLOPT_PIPEWAIT, Clong(1))
     Curl.setopt(easy, CURLOPT_POST, Clong(1))
     Curl.setopt(easy, CURLOPT_HTTPHEADER, GRPC_STATIC_HEADERS[])
-    Curl.set_ssl_verify(easy, verify_peer)
     if maxage > 0
-        Curl.setopt(easy, CURLOPT_MAXAGE_CONN, Clong(maxage))
+        Curl.setopt(easy, CURLOPT_MAXAGE_CONN, maxage)
     end
     if keepalive > 0
         Curl.setopt(easy, CURLOPT_TCP_KEEPALIVE, Clong(1))
-        Curl.setopt(easy, CURLOPT_TCP_KEEPINTVL, Clong(keepalive));
-        Curl.setopt(easy, CURLOPT_TCP_KEEPIDLE, Clong(keepalive));
+        Curl.setopt(easy, CURLOPT_TCP_KEEPINTVL, keepalive);
+        Curl.setopt(easy, CURLOPT_TCP_KEEPIDLE, keepalive);
     end
     easy
 end
@@ -87,13 +104,12 @@ function set_connect_timeout(easy::Curl.Easy, timeout::Real)
 end
 
 function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, output::Channel{T2};
-        maxage::Int64 = typemax(Int64),
-        keepalive::Int64 = 60,
+        maxage::Clong = typemax(Clong),
+        keepalive::Clong = 60,
         request_timeout::Real = Inf,
         connect_timeout::Real = 0,
-        verify_peer::Bool = true,
         verbose::Bool = false)::gRPCStatus where {T1 <: ProtoType, T2 <: ProtoType}
-    Curl.with_handle(easy_handle(maxage, keepalive, verify_peer)) do easy
+    Curl.with_handle(easy_handle(maxage, keepalive)) do easy
         # setup the request
         Curl.set_url(easy, url)
         Curl.set_timeout(easy, request_timeout)

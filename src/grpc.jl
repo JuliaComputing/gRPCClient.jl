@@ -53,7 +53,6 @@ end
         [ keepalive::Int64 = 60, ]
         [ request_timeout::Real = Inf, ]
         [ connect_timeout::Real = 0, ]
-        [ verify_peer::Bool = true, ]
         [ verbose::Bool = false, ]
     )
 
@@ -65,7 +64,6 @@ Contains settings to control the behavior of gRPC requests.
 - `request_timeout`: request timeout (seconds)
 - `connect_timeout`: connect timeout (seconds) (default is 300 seconds, same
    as setting this to 0)
-- `verify_peer`: whether to verify the peer (server) certificate (default true)
 - `verbose`: whether to print out verbose communication logs (default false)
 """
 struct gRPCController <: ProtoRpcController
@@ -73,18 +71,16 @@ struct gRPCController <: ProtoRpcController
     keepalive::Clong
     request_timeout::Real
     connect_timeout::Real
-    verify_peer::Bool
     verbose::Bool
 
     function gRPCController(;
-            maxage::Int = 0,
-            keepalive::Int64 = 60,
+            maxage::Integer = 0,
+            keepalive::Integer = 60,
             request_timeout::Real = Inf,
             connect_timeout::Real = 0,
-            verify_peer::Bool = true,
             verbose::Bool = false
         )
-        new(maxage, keepalive, request_timeout, connect_timeout, verify_peer, verbose)
+        new(maxage, keepalive, request_timeout, connect_timeout, verbose)
     end
 end
 
@@ -147,7 +143,6 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
         keepalive = controller.keepalive,
         request_timeout = controller.request_timeout,
         connect_timeout = controller.connect_timeout,
-        verify_peer = controller.verify_peer,
         verbose = controller.verbose,
     )
     outchannel, status_future
