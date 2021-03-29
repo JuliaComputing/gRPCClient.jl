@@ -71,7 +71,11 @@ server_endpoint = isempty(ARGS) ? "https://localhost:10000/" : ARGS[1]
 @info("server endpoint: $server_endpoint")
 
 @testset "gRPCClient" begin
-    test_generate()
+    if !Sys.iswindows()
+        test_generate()
+    else
+        @info("skipping code generation on Windows to avoid needing batch file execution permissions")
+    end
     include("test_routeclient.jl")
 
     serverproc = start_server()
