@@ -21,12 +21,14 @@ end
 
 function start_server()
     serverbin = server_binary()
-    cert_file = joinpath(@__DIR__, "certgen", "server.pem")
-    key_file = joinpath(@__DIR__, "certgen", "server.key")
-    @assert isfile(cert_file) && isfile(key_file)
+    #cert_file = joinpath(@__DIR__, "certgen", "server.pem")
+    #key_file = joinpath(@__DIR__, "certgen", "server.key")
+    #@assert isfile(cert_file) && isfile(key_file)
 
-    @info("starting test server", serverbin, cert_file, key_file)
-    serverproc = run(`$serverbin --tls=true --cert_file=$cert_file --key_file=$key_file`; wait=false)
+    @info("starting test server", serverbin)
+    #@info("starting test server", serverbin, cert_file, key_file)
+    #serverproc = run(`$serverbin --tls=true --cert_file=$cert_file --key_file=$key_file`; wait=false)
+    serverproc = run(`$serverbin`; wait=false)
 
     listening = timedwait(120.0; pollint=5.0) do 
         try
@@ -58,16 +60,16 @@ function test_generate()
 end
 
 # e.g.: SSL_CERT_FILE=/path/to/gRPCClient/test/certgen/ca.crt julia runtests.jl https://hostname:10000/
-if isempty(get(ENV, "SSL_CERT_FILE", ""))
-    ENV["SSL_CERT_FILE"] = joinpath(@__DIR__, "certgen", "ca.crt")
-end
+#if isempty(get(ENV, "SSL_CERT_FILE", ""))
+#    ENV["SSL_CERT_FILE"] = joinpath(@__DIR__, "certgen", "ca.crt")
+#end
 
 # switch off host verification for tests
 if isempty(get(ENV, "JULIA_NO_VERIFY_HOSTS", ""))
     ENV["JULIA_NO_VERIFY_HOSTS"] = "**"
 end
 
-server_endpoint = isempty(ARGS) ? "https://localhost:10000/" : ARGS[1]
+server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
 @info("server endpoint: $server_endpoint")
 
 @testset "gRPCClient" begin

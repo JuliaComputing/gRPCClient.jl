@@ -38,12 +38,19 @@ function grpc_headers()
     headers
 end
 
-function easy_handle(maxage::Clong, keepalive::Clong)
+function easy_handle(maxage::Clong, keepalive::Clong, negotiation::Symbol, revocation::Bool)
     easy = Curl.Easy()
-    Curl.setopt(easy, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0)
+    http_version = (negotiation === :http2) ? CURL_HTTP_VERSION_2_0 :
+                   (negotiation === :http2_tls) ? CURL_HTTP_VERSION_2TLS :
+                   (negotiation === :http2_prior_knowledge) ? CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE :
+                   throw(ArgumentError("unsupported HTTP2 negotiation mode $negotiation"))
+    Curl.setopt(easy, CURLOPT_HTTP_VERSION, http_version)
     Curl.setopt(easy, CURLOPT_PIPEWAIT, Clong(1))
     Curl.setopt(easy, CURLOPT_POST, Clong(1))
     Curl.setopt(easy, CURLOPT_HTTPHEADER, GRPC_STATIC_HEADERS[])
+    if !revocation
+        Curl.setopt(easy, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NO_REVOKE)
+    end
     if maxage > 0
         Curl.setopt(easy, CURLOPT_MAXAGE_CONN, maxage)
     end
@@ -106,10 +113,12 @@ end
 function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, output::Channel{T2};
         maxage::Clong = typemax(Clong),
         keepalive::Clong = 60,
+	negotiation::Symbol = :http2_prior_knowledge,
+	revocation::Bool = true,
         request_timeout::Real = Inf,
         connect_timeout::Real = 0,
         verbose::Bool = false)::gRPCStatus where {T1 <: ProtoType, T2 <: ProtoType}
-    Curl.with_handle(easy_handle(maxage, keepalive)) do easy
+    Curl.with_handle(easy_handle(maxage, keepalive, negotiation, revocation)) do easy
         # setup the request
         Curl.set_url(easy, url)
         Curl.set_timeout(easy, request_timeout)
