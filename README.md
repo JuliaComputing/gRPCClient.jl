@@ -2,9 +2,7 @@
 
 A Julia gRPC Client.
 
-GitHub Actions : [![Build Status](https://github.com/JuliaComputing/gRPCClient.jl/workflows/CI/badge.svg)](https://github.com/JuliaComputing/gRPCClient.jl/actions?query=workflow%3ACI+branch%3Amain)
-
-[![Coverage Status](https://coveralls.io/repos/JuliaComputing/gRPCClient.jl/badge.svg?branch=main)](https://coveralls.io/r/JuliaComputing/gRPCClient.jl?branch=main)
+[![Build Status](https://github.com/JuliaComputing/gRPCClient.jl/workflows/CI/badge.svg)](https://github.com/JuliaComputing/gRPCClient.jl/actions?query=workflow%3ACI+branch%3Amain)
 [![codecov.io](http://codecov.io/github/JuliaComputing/gRPCClient.jl/coverage.svg?branch=main)](http://codecov.io/github/JuliaComputing/gRPCClient.jl?branch=main)
 
 
