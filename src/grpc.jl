@@ -51,6 +51,8 @@ end
     gRPCController(;
         [ maxage::Int = 0, ]
         [ keepalive::Int64 = 60, ]
+        [ negotiation::Symbol = :http2_prior_knowledge, ]
+        [ revocation::Bool = true, ]
         [ request_timeout::Real = Inf, ]
         [ connect_timeout::Real = 0, ]
         [ verbose::Bool = false, ]
@@ -61,6 +63,10 @@ Contains settings to control the behavior of gRPC requests.
    be reused (default 180 seconds, same as setting this to 0).
 - `keepalive`: interval (seconds) in which to send TCP keepalive messages on
    the connection (default 60 seconds).
+- `negotiation`: how to negotiate HTTP2, can be one of `:http2_prior_knowledge`
+   (no negotiation, the default), `:http2_tls` (http2 upgrade but only over
+   tls), or `:http2` (http2 upgrade)
+- `revocation`: whether to check for certificate recovation (default is true)
 - `request_timeout`: request timeout (seconds)
 - `connect_timeout`: connect timeout (seconds) (default is 300 seconds, same
    as setting this to 0)
@@ -69,6 +75,8 @@ Contains settings to control the behavior of gRPC requests.
 struct gRPCController <: ProtoRpcController
     maxage::Clong
     keepalive::Clong
+    negotiation::Symbol
+    revocation::Bool
     request_timeout::Real
     connect_timeout::Real
     verbose::Bool
@@ -76,11 +84,13 @@ struct gRPCController <: ProtoRpcController
     function gRPCController(;
             maxage::Integer = 0,
             keepalive::Integer = 60,
+            negotiation::Symbol = :http2_prior_knowledge,
+            revocation::Bool = true,
             request_timeout::Real = Inf,
             connect_timeout::Real = 0,
             verbose::Bool = false
         )
-        new(maxage, keepalive, request_timeout, connect_timeout, verbose)
+        new(maxage, keepalive, negotiation, revocation, request_timeout, connect_timeout, verbose)
     end
 end
 
@@ -141,6 +151,8 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
     status_future = @async grpc_request(channel.downloader, url, input, outchannel;
         maxage = controller.maxage,
         keepalive = controller.keepalive,
+        negotiation = controller.negotiation,
+        revocation = controller.revocation,
         request_timeout = controller.request_timeout,
         connect_timeout = controller.connect_timeout,
         verbose = controller.verbose,

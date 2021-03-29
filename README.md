@@ -2,9 +2,7 @@
 
 A Julia gRPC Client.
 
-GitHub Actions : [![Build Status](https://github.com/JuliaComputing/gRPCClient.jl/workflows/CI/badge.svg)](https://github.com/JuliaComputing/gRPCClient.jl/actions?query=workflow%3ACI+branch%3Amain)
-
-[![Coverage Status](https://coveralls.io/repos/JuliaComputing/gRPCClient.jl/badge.svg?branch=main)](https://coveralls.io/r/JuliaComputing/gRPCClient.jl?branch=main)
+[![Build Status](https://github.com/JuliaComputing/gRPCClient.jl/workflows/CI/badge.svg)](https://github.com/JuliaComputing/gRPCClient.jl/actions?query=workflow%3ACI+branch%3Amain)
 [![codecov.io](http://codecov.io/github/JuliaComputing/gRPCClient.jl/coverage.svg?branch=main)](http://codecov.io/github/JuliaComputing/gRPCClient.jl?branch=main)
 
 
@@ -72,6 +70,8 @@ arguments passed to its constructor.
 gRPCController(;
     [ maxage::Int = 0, ]
     [ keepalive::Int64 = 60, ]
+    [ negotiation::Symbol = :http2_prior_knowledge, ]
+    [ revocation::Bool = true, ]
     [ request_timeout::Real = Inf, ]
     [ connect_timeout::Real = 0, ]
     [ verbose::Bool = false, ]
@@ -82,6 +82,10 @@ gRPCController(;
    be reused (default 180 seconds, same as setting this to 0).
 - `keepalive`: interval (seconds) in which to send TCP keepalive messages on
    the connection (default 60 seconds).
+- `negotiation`: how to negotiate HTTP2, can be one of `:http2_prior_knowledge`
+   (no negotiation, the default), `:http2_tls` (http2 upgrade but only over
+   tls), or `:http2` (http2 upgrade)
+- `revocation`: whether to check for certificate recovation (default is true)
 - `request_timeout`: request timeout (seconds)
 - `connect_timeout`: connect timeout (seconds) (default is 300 seconds, same
    as setting this to 0)
