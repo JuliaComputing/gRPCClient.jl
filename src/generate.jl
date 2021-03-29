@@ -125,7 +125,11 @@ function generate(proto::String; outdir::String=pwd())
 
     # generate protobuf service
     mkpath(outdir)
-    ProtoBuf.protoc(`-I=$protodir --julia_out=$outdir $proto`)
+    bindir = Sys.BINDIR
+    pathenv = string(ENV["PATH"], Sys.iswindows() ? ";" : ":", bindir)
+    withenv("PATH"=>pathenv) do
+        ProtoBuf.protoc(`-I=$protodir --julia_out=$outdir $proto`)
+    end
 
     # include the generated code and detect service method names
     generated_module = joinpath(outdir, "$(package).jl")
