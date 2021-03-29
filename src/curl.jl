@@ -20,6 +20,7 @@ end
 
 function send_data(easy::Curl.Easy, input::Channel{T}) where T <: ProtoType
     while true
+        yield()
         data = isready(input) ? to_delimited_message_bytes(take!(input)) : isopen(input) ? UInt8[] : nothing
         easy.input === nothing && break
         easy.input = data
