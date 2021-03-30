@@ -15,13 +15,13 @@ julia> using gRPCClient
 
 julia> gRPCClient.generate("route_guide.proto")
 ┌ Info: Generating gRPC client
-│   proto = "RouteGuideClients/route_guide.proto"
-└   outdir = "RouteGuideClients"
+│   proto = "RouteguideClients/route_guide.proto"
+└   outdir = "RouteguideClients"
 ┌ Info: Detected
 │   package = "routeguide"
 └   service = "RouteGuide"
 ┌ Info: Generated
-└   outdir = "RouteGuideClients"
+└   outdir = "RouteguideClients"
 ```
 
 The generated code can either be published as a package or included and used as a module.
@@ -29,11 +29,11 @@ The generated code can either be published as a package or included and used as 
 ```julia
 julia> using gRPCClient
 
-julia> include("RouteGuideClients/RouteGuideClients.jl");
+julia> include("RouteguideClients/RouteguideClients.jl");
 
-julia> using .RouteGuideClients
+julia> using .RouteguideClients
 
-julia> import .RouteGuideClients: Point, Feature, GetFeature
+julia> import .RouteguideClients: Point, Feature, GetFeature
 
 julia> Base.show(io::IO, location::Point) =
     print(io, string("[", location.latitude, ", ", location.longitude, "]"))
@@ -54,7 +54,50 @@ julia> feature # this is the API return value
 Berkshire Valley Management Area Trail, Jefferson, NJ, USA - [409146138, -746188906]
 ```
 
-## Internals
+The generated module is named after the package declared in the proto file.
+And for each service, a pair of clients are generated in the form of
+`<service_name>Client` and `<service_name>BlockingClient`.
+
+The service methods generated for `<service_name>Client` are identical to the
+ones generated for `<service_name>BlockingClient`, except that they spawn off
+the actual call into a task and accept a callback method that is invoked with
+the results. The `<service_name>BlockingClient` may however be more intuitive
+to use.
+
+Each service method returns (or calls back with, in the case of non-blocking
+clients) two values:
+- The result, which can be a Julia struct or a `Channel` for streaming output.
+- And, the gRPC status.
+
+The `gRPCCheck` method checks the status for success or failure. Note that for
+methods with streams as input or output, the gRPC status will not be ready
+until the method completes. So the status check and stream use must be done
+in separate tasks. E.g.:
+
+```julia
+@sync begin
+   in_channel = Channel{RouteguideClients.RouteNote}(1)
+   @async begin
+      # send inputs
+      for input in inputs
+         put!(in_channel, input)
+      end
+      close(in_channel)
+   end
+   out_channel, status_future = RouteguideClients.RouteChat(client, in_channel)
+   @async begin
+      # consume outputs
+      for output in out_channel
+         # use output
+      end
+   end
+   @async begin
+      gRPCCheck(status_future)
+   end
+end
+```
+
+## APIs and Implementation Details
 
 The generated gRPC client (`RouteGuideBlockingClient` in the example above)
 uses a gRPC controller and channel behind the scenes to communicate with

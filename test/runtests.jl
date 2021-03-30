@@ -46,11 +46,11 @@ end
 
 function test_generate()
     @testset "codegen" begin
-        dir = joinpath(@__DIR__, "RouteGuideClients")
+        dir = joinpath(@__DIR__, "RouteguideClients")
         gRPCClient.generate(joinpath(dir, "route_guide.proto"); outdir=dir)
         @test isfile(joinpath(dir, "route_guide_pb.jl"))
         @test isfile(joinpath(dir, "routeguide.jl"))
-        @test isfile(joinpath(dir, "RouteGuideClients.jl"))
+        @test isfile(joinpath(dir, "RouteguideClients.jl"))
     end
 end
 
