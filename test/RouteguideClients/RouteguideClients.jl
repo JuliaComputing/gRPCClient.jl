@@ -1,10 +1,13 @@
-module RouteGuideClients
+module RouteguideClients
 using gRPCClient
 
 include("routeguide.jl")
 using .routeguide
 
 import Base: show
+
+# begin service: routeguide.RouteGuide
+
 export RouteGuideBlockingClient, RouteGuideClient
 
 struct RouteGuideBlockingClient
@@ -76,4 +79,6 @@ import .routeguide: RouteChat
 RouteChat(client::RouteGuideBlockingClient, inp::Channel{routeguide.RouteNote}) = RouteChat(client.stub, client.controller, inp)
 RouteChat(client::RouteGuideClient, inp::Channel{routeguide.RouteNote}, done::Function) = RouteChat(client.stub, client.controller, inp, done)
 
-end # module RouteGuideClients
+# end service: routeguide.RouteGuide
+
+end # module RouteguideClients

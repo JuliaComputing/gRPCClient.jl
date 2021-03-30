@@ -1,8 +1,8 @@
 const package_regex = r"package\s(\S*)[\s]*;.*"
 const service_regex = r"service\s(\S*)[\s]*{.*"
 
-function write_header(io, package, service)
-    print(io, """module $(service)Clients
+function write_header(io, package, client_module_name)
+    print(io, """module $(client_module_name)
     using gRPCClient
 
     include("$(package).jl")
@@ -12,15 +12,18 @@ function write_header(io, package, service)
     """)
 end
 
-function write_trailer(io, package, service)
+function write_trailer(io, client_module_name)
     print(io, """
 
-    end # module $(service)Clients
+    end # module $(client_module_name)
     """)
 end
 
 function write_service(io, package, service, methods)
     print(io, """
+
+    # begin service: $(package).$(service)
+
     export $(service)BlockingClient, $(service)Client
 
     struct $(service)BlockingClient
@@ -56,6 +59,11 @@ function write_service(io, package, service, methods)
     for method in methods
         write_service_method(io, package, service, method)
     end
+
+    print(io, """
+
+    # end service: $(package).$(service)
+    """)
 end
 
 typename(ch::Type{T}) where {T <: Channel} = string("Channel{", typename(eltype(ch)), "}")
@@ -80,9 +88,9 @@ function write_service_method(io, package, service, method)
     """)
 end
 
-function detect_service(proto::String)
+function detect_services(proto::String)
     package = ""
-    service = ""
+    services = String[]
 
     for line in readlines(proto)
         line = strip(line)
@@ -95,10 +103,11 @@ function detect_service(proto::String)
             regexmatches = match(service_regex, line)
             if (regexmatches !== nothing) && (length(regexmatches.captures) == 1)
                 service = string(first(regexmatches.captures))
+                push!(services, service)
             end
         end
     end
-    package, service
+    package, services
 end
 
 """
@@ -119,11 +128,11 @@ function generate(proto::String; outdir::String=pwd())
     @info("Generating gRPC client", proto, outdir)
 
     # determine the package name and service name
-    package, service = detect_service(proto)
+    package, services = detect_services(proto)
     protodir = dirname(proto)
-    @info("Detected", package, service)
+    @info("Detected", package, services)
 
-    # generate protobuf service
+    # generate protobuf services
     mkpath(outdir)
     bindir = Sys.BINDIR
     pathenv = string(ENV["PATH"], Sys.iswindows() ? ";" : ":", bindir)
@@ -134,13 +143,16 @@ function generate(proto::String; outdir::String=pwd())
     # include the generated code and detect service method names
     generated_module = joinpath(outdir, "$(package).jl")
     Main.eval(:(include($generated_module)))
-    methods = Base.eval(Base.eval(Main, Symbol(package)), Symbol(string("_", service, "_methods")))
 
     # generate the gRPC client code
-    open(joinpath(outdir, "$(service)Clients.jl"), "w") do grpcservice
-        write_header(grpcservice, package, service)
-        write_service(grpcservice, package, service, methods)
-        write_trailer(grpcservice, package, service)
+    client_module_name = string(titlecase(package), "Clients")
+    open(joinpath(outdir, "$(client_module_name).jl"), "w") do grpcservice
+        write_header(grpcservice, package, client_module_name)
+        for service in services
+            methods = Base.eval(Base.eval(Main, Symbol(package)), Symbol(string("_", service, "_methods")))
+            write_service(grpcservice, package, service, methods)
+        end
+        write_trailer(grpcservice, client_module_name)
     end
 
     @info("Generated", outdir)
