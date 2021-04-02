@@ -1,5 +1,6 @@
 const package_regex = r"package\s(\S*)[\s]*;.*"
 const service_regex = r"service\s(\S*)[\s]*{.*"
+const services_option_regex = r"option\s[a-z]*_generic_services[\s]*=[\s]*true[\s]*;"
 
 function write_header(io, package, client_module_name)
     print(io, """module $(client_module_name)
@@ -88,6 +89,19 @@ function write_service_method(io, package, service, method)
     """)
 end
 
+function has_services_enabled(proto::String)
+    enabled = false
+    for line in readlines(proto)
+        line = strip(line)
+        regexmatches = match(services_option_regex, line)
+        if (regexmatches !== nothing)
+            enabled = true
+            break
+        end
+    end
+    enabled
+end
+
 function detect_services(proto::String)
     package = ""
     services = String[]
@@ -110,6 +124,14 @@ function detect_services(proto::String)
     package, services
 end
 
+function get_generated_method_table(s::String)
+    T = Main
+    for t in split(s, ".")
+        T = Base.eval(T, Symbol(t))
+    end
+    T
+end
+
 """
     generate(proto::String; outdir::String=pwd())
 
@@ -127,6 +149,11 @@ function generate(proto::String; outdir::String=pwd())
 
     @info("Generating gRPC client", proto, outdir)
 
+    # ensure services are enabled in proto file
+    if !has_services_enabled(proto)
+        throw(ArgumentError("Service generation must be enabled in $proto, e.g. option py_generic_services = true;"))
+    end
+
     # determine the package name and service name
     package, services = detect_services(proto)
     protodir = dirname(proto)
@@ -141,15 +168,16 @@ function generate(proto::String; outdir::String=pwd())
     end
 
     # include the generated code and detect service method names
-    generated_module = joinpath(outdir, "$(package).jl")
-    Main.eval(:(include($generated_module)))
+    generated_module = first(split(package, '.'; limit=2))
+    generated_module_file = joinpath(outdir, string(generated_module, ".jl"))
+    Main.eval(:(include($generated_module_file)))
 
     # generate the gRPC client code
-    client_module_name = string(titlecase(package), "Clients")
+    client_module_name = string(titlecase(package; strict=false), "Clients")
     open(joinpath(outdir, "$(client_module_name).jl"), "w") do grpcservice
         write_header(grpcservice, package, client_module_name)
         for service in services
-            methods = Base.eval(Base.eval(Main, Symbol(package)), Symbol(string("_", service, "_methods")))
+            methods = get_generated_method_table(string(package, "._", service, "_methods"))
             write_service(grpcservice, package, service, methods)
         end
         write_trailer(grpcservice, client_module_name)

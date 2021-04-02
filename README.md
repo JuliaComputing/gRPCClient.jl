@@ -12,6 +12,16 @@ gRPC services are declared in `.proto` files. Use `gRPCClient.generate` to gener
 
 gRPC code generation uses `protoc` and the `ProtoBuf.jl` package. To be able to generate gRPC client code, `ProtoBuf` package must be installed along with `gRPCClient`.
 
+The `protoc` file must have service generation turned on for at least one of C++, python or Java, e.g. one of:
+
+```
+option cc_generic_services = true;
+option py_generic_services = true;
+option java_generic_services = true;
+```
+
+The Julia code generated can be improper if the `package` name declared in the proto specification has `.`. Set a suitable `package` name without `.`.
+
 ```julia
 julia> using Pkg
 
