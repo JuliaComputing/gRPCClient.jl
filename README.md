@@ -10,7 +10,20 @@ A Julia gRPC Client.
 
 gRPC services are declared in `.proto` files. Use `gRPCClient.generate` to generate client code from specification files.
 
+gRPC code generation uses `protoc` and the `ProtoBuf.jl` package. To be able to generate gRPC client code, `ProtoBuf` package must be installed along with `gRPCClient`.
+
 ```julia
+julia> using Pkg
+
+julia> Pkg.add("ProtoBuf")
+...
+  Installed ProtoBuf ──── v0.11.0
+Downloading artifact: protoc
+...
+julia> Pkg.add("gRPCClient")
+...
+julia> # or Pkg.develop(PackageSpec(url="https://github.com/JuliaComputing/gRPCClient.jl"))
+
 julia> using gRPCClient
 
 julia> gRPCClient.generate("route_guide.proto")
