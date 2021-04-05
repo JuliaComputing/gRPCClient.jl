@@ -12,39 +12,56 @@
 struct gRPCStatus
     success::Bool
     message::String
+    exception::Union{Nothing,Exception}
+end
+
+gRPCStatus(success::Bool, message::AbstractString) = gRPCStatus(success, string(message), nothing)
+function gRPCStatus(status_future)
+    try
+        fetch(status_future)
+    catch ex
+        task_exception = isa(ex, TaskFailedException) ? ex.task.exception : ex
+        while isa(task_exception, TaskFailedException)
+            task_exception = task_exception.task.exception
+        end
+        gRPCStatus(false, string(task_exception), task_exception)
+    end
 end
 
 """
-    struct gRPCException
+    struct gRPCServiceCallException
         message::String
     end
 
-Every gRPC request returns the result and a future representing the status
-of the gRPC request. Use the `gRPCCheck` method on the status future to check
-the request status and throw a `gRPCException` if it is not successful.
-
-A `gRPCException` has the following members:
+A `gRPCServiceCallException` is thrown if a gRPC request is not successful.
+It has the following members:
 
 - `message`: any error message if request was not successful
 """
-struct gRPCException <: Exception
+struct gRPCServiceCallException <: gRPCException
     message::String
 end
+
+Base.show(io::IO, m::gRPCServiceCallException) = print(io, "gRPCServiceCallException - $(m.message)")
 
 """
     gRPCCheck(status; throw_error::Bool=true)
 
-Check the response of a gRPC request and raise a `gRPCException` if it has
-failed. If `throw_error` is set to false, returns `true` or `false` indicating
-success instead.
+Every gRPC request returns the result and a future representing the status
+of the gRPC request. Check the response of a gRPC request and raise a
+`gRPCException` if it has failed. If `throw_error` is set to false, this
+returns `true` or `false` indicating success instead.
 """
-gRPCCheck(status; throw_error::Bool=true) = gRPCCheck(fetch(status); throw_error=throw_error)
+gRPCCheck(status_future; throw_error::Bool=true) = gRPCCheck(gRPCStatus(status_future); throw_error=throw_error)
 function gRPCCheck(status::gRPCStatus; throw_error::Bool=true)
-    if throw_error
-        status.success || throw(gRPCException(status.message))
-    else
-        status.success
+    if throw_error && !status.success
+        if status.exception === nothing
+            throw(gRPCServiceCallException(status.message))
+        else
+            throw(status.exception)
+        end
     end
+    status.success
 end
 
 """
@@ -55,6 +72,9 @@ end
         [ revocation::Bool = true, ]
         [ request_timeout::Real = Inf, ]
         [ connect_timeout::Real = 0, ]
+        [ max_message_length = DEFAULT_MAX_MESSAGE_LENGTH, ]
+        [ max_recv_message_length = 0, ]
+        [ max_send_message_length = 0, ]
         [ verbose::Bool = false, ]
     )
 
@@ -70,6 +90,11 @@ Contains settings to control the behavior of gRPC requests.
 - `request_timeout`: request timeout (seconds)
 - `connect_timeout`: connect timeout (seconds) (default is 300 seconds, same
    as setting this to 0)
+- `max_message_length`: maximum message length (default is 4MB)
+- `max_recv_message_length`: maximum message length to receive (default is
+   `max_message_length`, same as setting this to 0)
+- `max_send_message_length`: maximum message length to send (default is
+   `max_message_length`, same as setting this to 0)
 - `verbose`: whether to print out verbose communication logs (default false)
 """
 struct gRPCController <: ProtoRpcController
@@ -79,6 +104,8 @@ struct gRPCController <: ProtoRpcController
     revocation::Bool
     request_timeout::Real
     connect_timeout::Real
+    max_recv_message_length::Int
+    max_send_message_length::Int
     verbose::Bool
 
     function gRPCController(;
@@ -88,9 +115,18 @@ struct gRPCController <: ProtoRpcController
             revocation::Bool = true,
             request_timeout::Real = Inf,
             connect_timeout::Real = 0,
+            max_message_length::Integer = DEFAULT_MAX_MESSAGE_LENGTH,
+            max_recv_message_length::Integer = 0,
+            max_send_message_length::Integer = 0,
             verbose::Bool = false
         )
-        new(maxage, keepalive, negotiation, revocation, request_timeout, connect_timeout, verbose)
+        if maxage < 0 || keepalive < 0 || request_timeout < 0 || connect_timeout < 0 || 
+            max_message_length < 0 || max_recv_message_length < 0 || max_send_message_length < 0
+            throw(ArgumentError("Invalid gRPCController parameter"))
+        end
+        (max_recv_message_length == 0) && (max_recv_message_length = max_message_length)
+        (max_send_message_length == 0) && (max_send_message_length = max_message_length)
+        new(maxage, keepalive, negotiation, revocation, request_timeout, connect_timeout, max_recv_message_length, max_send_message_length, verbose)
     end
 end
 
@@ -118,13 +154,15 @@ struct gRPCChannel <: ProtoRpcChannel
     end
 end
 
-function to_delimited_message_bytes(msg)
+function to_delimited_message_bytes(msg, max_message_length::Int)
     iob = IOBuffer()
-    write(iob, UInt8(0))                # compression
-    write(iob, hton(UInt32(0)))         # message length (placeholder)
-    data_len = writeproto(iob, msg)     # message bytes
-    seek(iob, 1)                        # seek out the message length placeholder
-    write(iob, hton(UInt32(data_len)))  # fill the message length
+    limitiob = LimitIO(iob, max_message_length)
+    write(limitiob, UInt8(0))                   # compression
+    write(limitiob, hton(UInt32(0)))            # message length (placeholder)
+    data_len = writeproto(limitiob, msg)        # message bytes
+
+    seek(iob, 1)                                # seek out the message length placeholder
+    write(iob, hton(UInt32(data_len)))          # fill the message length
     take!(iob)
 end
 
@@ -155,6 +193,8 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
         revocation = controller.revocation,
         request_timeout = controller.request_timeout,
         connect_timeout = controller.connect_timeout,
+        max_recv_message_length = controller.max_recv_message_length,
+        max_send_message_length = controller.max_send_message_length,
         verbose = controller.verbose,
     )
     outchannel, status_future

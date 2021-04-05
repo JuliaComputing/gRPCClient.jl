@@ -72,7 +72,7 @@ server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
 
     serverproc = start_server()
 
-    @info("testing routeclinet...")
+    @debug("testing routeclinet...")
     test_clients(server_endpoint)
 
     kill(serverproc)
