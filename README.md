@@ -140,6 +140,9 @@ gRPCController(;
     [ revocation::Bool = true, ]
     [ request_timeout::Real = Inf, ]
     [ connect_timeout::Real = 0, ]
+    [ max_message_length = DEFAULT_MAX_MESSAGE_LENGTH, ]
+    [ max_recv_message_length = 0, ]
+    [ max_send_message_length = 0, ]
     [ verbose::Bool = false, ]
 )
 ```
@@ -155,6 +158,11 @@ gRPCController(;
 - `request_timeout`: request timeout (seconds)
 - `connect_timeout`: connect timeout (seconds) (default is 300 seconds, same
    as setting this to 0)
+- `max_message_length`: maximum message length (default is 4MB)
+- `max_recv_message_length`: maximum message length to receive (default is
+   `max_message_length`, same as setting this to 0)
+- `max_send_message_length`: maximum message length to send (default is
+   `max_message_length`, same as setting this to 0)
 - `verbose`: whether to print out verbose communication logs (default false)
 
 ### `gRPCChannel`
@@ -178,15 +186,6 @@ the server.
 - `success`: whether the request was completed successfully.
 - `message`: any error message if request was not successful
 
-### `gRPCException`
-
-Every gRPC request returns the result and a future representing the status
-of the gRPC request. Use the `gRPCCheck` method on the status future to check
-the request status and throw a `gRPCException` if it is not successful.
-
-A `gRPCException` has a member named `message` that may contain an error
-message if request was not successful.
-
 ### `gRPCCheck`
 
 ```julia
@@ -196,3 +195,36 @@ gRPCCheck(status; throw_error::Bool=true)
 Method to check the response of a gRPC request and raise a `gRPCException`
 if it has failed. If `throw_error` is set to false, returns `true` or `false`
 indicating success instead.
+
+### `gRPCException`
+
+Every gRPC request returns the result and a future representing the status
+of the gRPC request. Use the `gRPCCheck` method on the status future to check
+the request status and throw a `gRPCException` if it is not successful.
+
+The abstract `gRPCException` type has the following concrete implementations:
+
+- `gRPCMessageTooLargeException`
+- `gRPCServiceCallException`
+
+### `gRPCMessageTooLargeException`
+
+A `gRPMessageTooLargeException` exception is thrown when a message is
+encountered that has a size greater than the limit configured.
+Specifically, `max_recv_message_length` while receiving  and
+`max_send_message_length` while sending.
+
+A `gRPMessageTooLargeException` has the following members:
+
+- `limit`: the limit value that was exceeded
+- `encountered`: the amount of data that was actually received
+    or sent before this error was triggered. Note that this may
+    not correspond to the full size of the data, as error may be
+    thrown before actually materializing the complete data.
+
+### `gRPCServiceCallException`
+
+A `gRPCServiceCallException` is thrown if a gRPC request is not successful.
+It has the following members:
+
+- `message`: any error message if request was not successful

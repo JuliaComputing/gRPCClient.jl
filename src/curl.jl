@@ -18,10 +18,10 @@ function buffer_send_data(input::Channel{T}) where T <: ProtoType
 end
 =#
 
-function send_data(easy::Curl.Easy, input::Channel{T}) where T <: ProtoType
+function send_data(easy::Curl.Easy, input::Channel{T}, max_send_message_length::Int) where T <: ProtoType
     while true
         yield()
-        data = isready(input) ? to_delimited_message_bytes(take!(input)) : isopen(input) ? UInt8[] : nothing
+        data = isready(input) ? to_delimited_message_bytes(take!(input), max_send_message_length) : isopen(input) ? UInt8[] : nothing
         easy.input === nothing && break
         easy.input = data
         Curl.curl_easy_pause(easy.handle, Curl.CURLPAUSE_CONT)
@@ -63,7 +63,7 @@ function easy_handle(maxage::Clong, keepalive::Clong, negotiation::Symbol, revoc
     easy
 end
 
-function recv_data(easy::Curl.Easy, output::Channel{T}) where T <: ProtoType
+function recv_data(easy::Curl.Easy, output::Channel{T}, max_recv_message_length::Int) where T <: ProtoType
     iob = PipeBuffer()
     waiting_for_header = true
     msgsize = 0
@@ -78,6 +78,11 @@ function recv_data(easy::Curl.Easy, output::Channel{T}) where T <: ProtoType
                 if bytesavailable(iob) >= 5
                     compressed = read(iob, UInt8)       # compression
                     datalen = ntoh(read(iob, UInt32))   # message length
+
+                    if datalen > max_recv_message_length
+                        throw(gRPCMessageTooLargeException(max_recv_message_length, datalen))
+                    end
+
                     waiting_for_header = false
                 else
                     need_more = true
@@ -114,10 +119,12 @@ end
 function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, output::Channel{T2};
         maxage::Clong = typemax(Clong),
         keepalive::Clong = 60,
-	negotiation::Symbol = :http2_prior_knowledge,
-	revocation::Bool = true,
+        negotiation::Symbol = :http2_prior_knowledge,
+        revocation::Bool = true,
         request_timeout::Real = Inf,
         connect_timeout::Real = 0,
+        max_recv_message_length::Int = DEFAULT_MAX_RECV_MESSAGE_LENGTH,
+        max_send_message_length::Int = DEFAULT_MAX_SEND_MESSAGE_LENGTH,
         verbose::Bool = false)::gRPCStatus where {T1 <: ProtoType, T2 <: ProtoType}
     Curl.with_handle(easy_handle(maxage, keepalive, negotiation, revocation)) do easy
         # setup the request
@@ -131,14 +138,54 @@ function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, o
         # do the request
         Curl.add_handle(downloader.multi, easy)
 
-        try
-            # do send recv data
-            Base.Experimental.@sync begin
-                @async recv_data(easy, output)
-                @async send_data(easy, input)
-            end
-        finally # ensure handle is removed
+        function cleanup()
             Curl.remove_handle(downloader.multi, easy)
+            # though remove_handle sets easy.handle to C_NULL, it does not close output and progress channels
+            # we need to close them here to unblock anything waiting on them
+            close(easy.output)
+            close(easy.progress)
+            close(output)
+            close(input)
+            nothing
+        end
+
+        # do send recv data
+        if VERSION < v"1.5"
+            cleaned_up = false
+            exception = nothing
+            cleanup_once = (ex)->begin
+                if !cleaned_up
+                    cleaned_up = true
+                    exception = ex
+                    cleanup()
+                end
+            end
+
+            @sync begin
+                @async try
+                    recv_data(easy, output, max_recv_message_length)
+                catch ex
+                    cleanup_once(ex)
+                end
+                @async try
+                    send_data(easy, input, max_send_message_length)
+                catch ex
+                    cleanup_once(ex)
+                end
+            end
+
+            if exception !== nothing
+                throw(exception)
+            end
+        else
+            try
+                Base.Experimental.@sync begin
+                    @async recv_data(easy, output, max_recv_message_length)
+                    @async send_data(easy, input, max_send_message_length)
+                end
+            finally # ensure handle is removed
+                cleanup()
+            end
         end
 
         (easy.code == CURLE_OK) ? gRPCStatus(true, "") : gRPCStatus(false, Curl.get_curl_errstr(easy))

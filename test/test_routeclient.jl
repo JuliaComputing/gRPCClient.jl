@@ -104,8 +104,32 @@ function test_exception()
     client = RouteGuideBlockingClient("https://localhost:30000"; verbose=false)
     point = RouteguideClients.Point(; latitude=409146138, longitude=-746188906)
     feature, status_future = RouteguideClients.GetFeature(client, point)
-    @test_throws gRPCException gRPCCheck(status_future)
+    @test_throws gRPCServiceCallException gRPCCheck(status_future)
     @test !gRPCCheck(status_future; throw_error=false)
+
+    @test_throws ArgumentError RouteGuideBlockingClient("https://localhost:30000"; maxage=-1)
+end
+
+function test_message_length_limit(server_endpoint)
+    # test send message length limit
+    client = RouteGuideBlockingClient(server_endpoint; max_message_length=1, verbose=false)
+    point = RouteguideClients.Point(; latitude=409146138, longitude=-746188906)
+    feature, status_future = RouteguideClients.GetFeature(client, point)
+    @test_throws gRPCMessageTooLargeException gRPCCheck(status_future)
+    @test !gRPCCheck(status_future; throw_error=false)
+
+    # test recv message length limit
+    client = RouteGuideBlockingClient(server_endpoint; max_recv_message_length=1, verbose=false)
+    point = RouteguideClients.Point(; latitude=409146138, longitude=-746188906)
+    feature, status_future = RouteguideClients.GetFeature(client, point)
+    @test_throws gRPCMessageTooLargeException gRPCCheck(status_future)
+    @test !gRPCCheck(status_future; throw_error=false)
+
+    iob = IOBuffer()
+    show(iob, gRPCMessageTooLargeException(1, 2))
+    @test String(take!(iob)) == "gRPMessageTooLargeException(1, 2) - Encountered message size 2 > max configured 1"
+    show(iob, gRPCServiceCallException("test error"))
+    @test String(take!(iob)) == "gRPCServiceCallException - test error"
 end
 
 function test_async_get_feature(client::RouteGuideClient)
@@ -116,7 +140,7 @@ function test_async_get_feature(client::RouteGuideClient)
     feature, status_future = take!(results)
     gRPCCheck(status_future)
     @test isa(feature, RouteguideClients.Feature)
-    @debug("existing feature", feature)    
+    @debug("existing feature", feature)
 end
 
 function test_async_client(server_endpoint::String)
@@ -128,25 +152,23 @@ end
 
 function test_blocking_client(server_endpoint::String)
     client = RouteGuideBlockingClient(server_endpoint; verbose=false)
-    @info("testing GetFeature")
-    @testset "GetFeature" begin
+    @testset "request response" begin
         test_get_feature(client)
     end
-    @info("testing ListFeatures")
-    @testset "ListFeatures" begin
+    @testset "streaming recv" begin
         test_list_features(client)
     end
-    @info("testing RecordRoute")
-    @testset "RecordRoute" begin
+    @testset "streaming send" begin
         test_record_route(client)
     end
-    @info("testing RouteChat")
-    @testset "RouteChat" begin
+    @testset "streaming send recv" begin
         test_route_chat(client)
     end
-    @info("testing ErrorHandling")
-    @testset "ErrorHandling" begin
+    @testset "error handling" begin
         test_exception()
+    end
+    @testset "message length limits" begin
+        test_message_length_limit(server_endpoint)
     end
 end
 
