@@ -1,6 +1,5 @@
 const package_regex = r"package\s(\S*)[\s]*;.*"
 const service_regex = r"service\s(\S*)[\s]*{.*"
-const services_option_regex = r"option\s[a-z]*_generic_services[\s]*=[\s]*true[\s]*;"
 
 function write_header(io, package, client_module_name)
     print(io, """module $(client_module_name)
@@ -89,19 +88,6 @@ function write_service_method(io, package, service, method)
     """)
 end
 
-function has_services_enabled(proto::String)
-    enabled = false
-    for line in readlines(proto)
-        line = strip(line)
-        regexmatches = match(services_option_regex, line)
-        if (regexmatches !== nothing)
-            enabled = true
-            break
-        end
-    end
-    enabled
-end
-
 function detect_services(proto::String)
     package = ""
     services = String[]
@@ -148,11 +134,6 @@ function generate(proto::String; outdir::String=pwd())
     proto = abspath(proto)
 
     @info("Generating gRPC client", proto, outdir)
-
-    # ensure services are enabled in proto file
-    if !has_services_enabled(proto)
-        throw(ArgumentError("Service generation must be enabled in $proto, e.g. option py_generic_services = true;"))
-    end
 
     # determine the package name and service name
     package, services = detect_services(proto)

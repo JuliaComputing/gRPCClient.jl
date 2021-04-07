@@ -18,8 +18,6 @@ option go_package = "google.golang.org/grpc/examples/route_guide/routeguide";
 option java_multiple_files = true;
 option java_package = "io.grpc.examples.routeguide";
 option java_outer_classname = "RouteGuideProto";
-option py_generic_services = true;
-option java_generic_services = true;
 
 package routeguide;
 
