@@ -203,10 +203,10 @@ end
 
 # service methods for RouteGuide
 const _RouteGuide_methods = MethodDescriptor[
-        MethodDescriptor("GetFeature", 1, routeguide.Point, routeguide.Feature),
-        MethodDescriptor("ListFeatures", 2, routeguide.Rectangle, Channel{routeguide.Feature}),
-        MethodDescriptor("RecordRoute", 3, Channel{routeguide.Point}, routeguide.RouteSummary),
-        MethodDescriptor("RouteChat", 4, Channel{routeguide.RouteNote}, Channel{routeguide.RouteNote})
+        MethodDescriptor("GetFeature", 1, Point, Feature),
+        MethodDescriptor("ListFeatures", 2, Rectangle, Channel{Feature}),
+        MethodDescriptor("RecordRoute", 3, Channel{Point}, RouteSummary),
+        MethodDescriptor("RouteChat", 4, Channel{RouteNote}, Channel{RouteNote})
     ] # const _RouteGuide_methods
 const _RouteGuide_desc = ServiceDescriptor("routeguide.RouteGuide", 1, _RouteGuide_methods)
 
@@ -222,16 +222,16 @@ mutable struct RouteGuideBlockingStub <: AbstractProtoServiceStub{true}
     RouteGuideBlockingStub(channel::ProtoRpcChannel) = new(ProtoServiceBlockingStub(_RouteGuide_desc, channel))
 end # mutable struct RouteGuideBlockingStub
 
-GetFeature(stub::RouteGuideStub, controller::ProtoRpcController, inp::routeguide.Point, done::Function) = call_method(stub.impl, _RouteGuide_methods[1], controller, inp, done)
-GetFeature(stub::RouteGuideBlockingStub, controller::ProtoRpcController, inp::routeguide.Point) = call_method(stub.impl, _RouteGuide_methods[1], controller, inp)
+GetFeature(stub::RouteGuideStub, controller::ProtoRpcController, inp::Point, done::Function) = call_method(stub.impl, _RouteGuide_methods[1], controller, inp, done)
+GetFeature(stub::RouteGuideBlockingStub, controller::ProtoRpcController, inp::Point) = call_method(stub.impl, _RouteGuide_methods[1], controller, inp)
 
-ListFeatures(stub::RouteGuideStub, controller::ProtoRpcController, inp::routeguide.Rectangle, done::Function) = call_method(stub.impl, _RouteGuide_methods[2], controller, inp, done)
-ListFeatures(stub::RouteGuideBlockingStub, controller::ProtoRpcController, inp::routeguide.Rectangle) = call_method(stub.impl, _RouteGuide_methods[2], controller, inp)
+ListFeatures(stub::RouteGuideStub, controller::ProtoRpcController, inp::Rectangle, done::Function) = call_method(stub.impl, _RouteGuide_methods[2], controller, inp, done)
+ListFeatures(stub::RouteGuideBlockingStub, controller::ProtoRpcController, inp::Rectangle) = call_method(stub.impl, _RouteGuide_methods[2], controller, inp)
 
-RecordRoute(stub::RouteGuideStub, controller::ProtoRpcController, inp::Channel{routeguide.Point}, done::Function) = call_method(stub.impl, _RouteGuide_methods[3], controller, inp, done)
-RecordRoute(stub::RouteGuideBlockingStub, controller::ProtoRpcController, inp::Channel{routeguide.Point}) = call_method(stub.impl, _RouteGuide_methods[3], controller, inp)
+RecordRoute(stub::RouteGuideStub, controller::ProtoRpcController, inp::Channel{Point}, done::Function) = call_method(stub.impl, _RouteGuide_methods[3], controller, inp, done)
+RecordRoute(stub::RouteGuideBlockingStub, controller::ProtoRpcController, inp::Channel{Point}) = call_method(stub.impl, _RouteGuide_methods[3], controller, inp)
 
-RouteChat(stub::RouteGuideStub, controller::ProtoRpcController, inp::Channel{routeguide.RouteNote}, done::Function) = call_method(stub.impl, _RouteGuide_methods[4], controller, inp, done)
-RouteChat(stub::RouteGuideBlockingStub, controller::ProtoRpcController, inp::Channel{routeguide.RouteNote}) = call_method(stub.impl, _RouteGuide_methods[4], controller, inp)
+RouteChat(stub::RouteGuideStub, controller::ProtoRpcController, inp::Channel{RouteNote}, done::Function) = call_method(stub.impl, _RouteGuide_methods[4], controller, inp, done)
+RouteChat(stub::RouteGuideBlockingStub, controller::ProtoRpcController, inp::Channel{RouteNote}) = call_method(stub.impl, _RouteGuide_methods[4], controller, inp)
 
 export Point, Rectangle, Feature, RouteNote, RouteSummary, RouteGuide, RouteGuideStub, RouteGuideBlockingStub, GetFeature, ListFeatures, RecordRoute, RouteChat
