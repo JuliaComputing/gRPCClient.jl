@@ -228,3 +228,7 @@ A `gRPCServiceCallException` is thrown if a gRPC request is not successful.
 It has the following members:
 
 - `message`: any error message if request was not successful
+
+## Credits
+
+This package was originally developed at [Julia Computing](https://juliacomputing.com)
