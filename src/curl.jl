@@ -1,5 +1,29 @@
 const GRPC_STATIC_HEADERS = Ref{Ptr{Nothing}}(C_NULL)
 
+const StatusCode = (
+    OK                  = (code=0,  message="Success"),
+    CANCELLED           = (code=1,  message="The operation was cancelled"),
+    UNKNOWN             = (code=2,  message="Unknown error"),
+    INVALID_ARGUMENT    = (code=3,  message="Client specified an invalid argument"),
+    DEADLINE_EXCEEDED   = (code=4,  message="Deadline expired before the operation could complete"),
+    NOT_FOUND           = (code=5,  message="Requested entity was not found"),
+    ALREADY_EXISTS      = (code=6,  message="Entity already exists"),
+    PERMISSION_DENIED   = (code=7,  message="No permission to execute the specified operation"),
+    RESOURCE_EXHAUSTED  = (code=8,  message="Resource exhausted"),
+    FAILED_PRECONDITION = (code=9,  message="Operation was rejected because the system is not in a state required for the operation's execution"),
+    ABORTED             = (code=10, message="Operation was aborted"),
+    OUT_OF_RANGE        = (code=11, message="Operation was attempted past the valid range"),
+    UNIMPLEMENTED       = (code=12, message="Operation is not implemented or is not supported/enabled in this service"),
+    INTERNAL            = (code=13, message="Internal error"),
+    UNAVAILABLE         = (code=14, message="The service is currently unavailable"),
+    DATA_LOSS           = (code=15, message="Unrecoverable data loss or corruption"),
+    UNAUTHENTICATED     = (code=16, message="The request does not have valid authentication credentials for the operation")
+)
+
+grpc_status_info(code) = StatusCode[code+1]
+grpc_status_message(code) = (grpc_status_info(code)).message
+grpc_status_code_str(code) = string(propertynames(StatusCode)[code+1])
+
 #=
 const SEND_BUFFER_SZ = 1024 * 1024
 function buffer_send_data(input::Channel{T}) where T <: ProtoType
@@ -31,15 +55,46 @@ function send_data(easy::Curl.Easy, input::Channel{T}, max_send_message_length::
     end
 end
 
-function grpc_headers()
+function grpc_timeout_header_val(timeout::Real)
+    if round(Int, timeout) == timeout
+        timeout_secs = round(Int64, timeout)
+        return "$(timeout_secs)S"
+    end
+    timeout *= 1000
+    if round(Int, timeout) == timeout
+        timeout_millisecs = round(Int64, timeout)
+        return "$(timeout_millisecs)m"
+    end
+    timeout *= 1000
+    if round(Int, timeout) == timeout
+        timeout_microsecs = round(Int64, timeout)
+        return "$(timeout_microsecs)u"
+    end
+    timeout *= 1000
+    timeout_nanosecs = round(Int64, timeout)
+    return "$(timeout_nanosecs)n"
+end
+
+function grpc_headers(; timeout::Real=Inf)
     headers = C_NULL
     headers = LibCURL.curl_slist_append(headers, "User-Agent: $(Curl.USER_AGENT)")
     headers = LibCURL.curl_slist_append(headers, "Content-Type: application/grpc+proto")
     headers = LibCURL.curl_slist_append(headers, "Content-Length:")
+    if timeout !== Inf
+        headers = LibCURL.curl_slist_append(headers, "grpc-timeout: $(grpc_timeout_header_val(timeout))")
+    end
     headers
 end
 
-function easy_handle(maxage::Clong, keepalive::Clong, negotiation::Symbol, revocation::Bool)
+function grpc_request_header(request_timeout::Real)
+    if request_timeout == Inf
+        GRPC_STATIC_HEADERS[]
+    else
+        grpc_headers(; timeout=request_timeout)
+    end
+end
+
+function easy_handle(maxage::Clong, keepalive::Clong, negotiation::Symbol, revocation::Bool, request_timeout::Real)
     easy = Curl.Easy()
     http_version = (negotiation === :http2) ? CURL_HTTP_VERSION_2_0 :
                    (negotiation === :http2_tls) ? CURL_HTTP_VERSION_2TLS :
@@ -48,7 +103,7 @@ function easy_handle(maxage::Clong, keepalive::Clong, negotiation::Symbol, revoc
     Curl.setopt(easy, CURLOPT_HTTP_VERSION, http_version)
     Curl.setopt(easy, CURLOPT_PIPEWAIT, Clong(1))
     Curl.setopt(easy, CURLOPT_POST, Clong(1))
-    Curl.setopt(easy, CURLOPT_HTTPHEADER, GRPC_STATIC_HEADERS[])
+    Curl.setopt(easy, CURLOPT_HTTPHEADER, grpc_request_header(request_timeout))
     if !revocation
         Curl.setopt(easy, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NO_REVOKE)
     end
@@ -126,7 +181,7 @@ function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, o
         max_recv_message_length::Int = DEFAULT_MAX_RECV_MESSAGE_LENGTH,
         max_send_message_length::Int = DEFAULT_MAX_SEND_MESSAGE_LENGTH,
         verbose::Bool = false)::gRPCStatus where {T1 <: ProtoType, T2 <: ProtoType}
-    Curl.with_handle(easy_handle(maxage, keepalive, negotiation, revocation)) do easy
+    Curl.with_handle(easy_handle(maxage, keepalive, negotiation, revocation, request_timeout)) do easy
         # setup the request
         Curl.set_url(easy, url)
         Curl.set_timeout(easy, request_timeout)
@@ -188,6 +243,29 @@ function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, o
             end
         end
 
-        (easy.code == CURLE_OK) ? gRPCStatus(true, "") : gRPCStatus(false, Curl.get_curl_errstr(easy))
+        @debug("response headers", easy.res_hdrs)
+
+        # parse the grpc headers
+        grpc_status = StatusCode.OK.code
+        grpc_message = ""
+        for hdr in easy.res_hdrs
+            if startswith(hdr, "grpc-status")
+                grpc_status = parse(Int, strip(last(split(hdr, ':'; limit=2))))
+            elseif startswith(hdr, "grpc-message")
+                grpc_message = string(strip(last(split(hdr, ':'; limit=2))))
+            end
+        end
+        if (easy.code == CURLE_OPERATION_TIMEDOUT) && (grpc_status == StatusCode.OK.code)
+            grpc_status = StatusCode.DEADLINE_EXCEEDED.code
+        end
+        if (grpc_status != StatusCode.OK.code) && isempty(grpc_message)
+            grpc_message = grpc_status_message(grpc_status)
+        end
+
+        if ((easy.code == CURLE_OK) && (grpc_status == StatusCode.OK.code))
+            gRPCStatus(true, grpc_status, "")
+        else
+            gRPCStatus(false, grpc_status, isempty(grpc_message) ? Curl.get_curl_errstr(easy) : grpc_message)
+        end
     end
 end

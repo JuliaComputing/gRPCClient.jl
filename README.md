@@ -184,6 +184,7 @@ the server.
 `gRPCStatus` represents the status of a request. It has the following fields:
 
 - `success`: whether the request was completed successfully.
+- `grpc_status`: the grpc status code returned
 - `message`: any error message if request was not successful
 
 ### `gRPCCheck`
@@ -227,6 +228,7 @@ A `gRPMessageTooLargeException` has the following members:
 A `gRPCServiceCallException` is thrown if a gRPC request is not successful.
 It has the following members:
 
+- `grpc_status`: grpc status code for this request
 - `message`: any error message if request was not successful
 
 ## Credits

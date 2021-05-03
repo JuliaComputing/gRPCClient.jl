@@ -103,33 +103,27 @@ end
 function test_exception()
     client = RouteGuideBlockingClient("https://localhost:30000"; verbose=false)
     point = RouteguideClients.Point(; latitude=409146138, longitude=-746188906)
-    feature, status_future = RouteguideClients.GetFeature(client, point)
-    @test_throws gRPCServiceCallException gRPCCheck(status_future)
-    @test !gRPCCheck(status_future; throw_error=false)
+    @test_throws gRPCServiceCallException RouteguideClients.GetFeature(client, point)
 
     @test_throws ArgumentError RouteGuideBlockingClient("https://localhost:30000"; maxage=-1)
 end
 
 function test_message_length_limit(server_endpoint)
+    point = RouteguideClients.Point(; latitude=409146138, longitude=-746188906)
+
     # test send message length limit
     client = RouteGuideBlockingClient(server_endpoint; max_message_length=1, verbose=false)
-    point = RouteguideClients.Point(; latitude=409146138, longitude=-746188906)
-    feature, status_future = RouteguideClients.GetFeature(client, point)
-    @test_throws gRPCMessageTooLargeException gRPCCheck(status_future)
-    @test !gRPCCheck(status_future; throw_error=false)
+    @test_throws gRPCMessageTooLargeException RouteguideClients.GetFeature(client, point)
 
     # test recv message length limit
     client = RouteGuideBlockingClient(server_endpoint; max_recv_message_length=1, verbose=false)
-    point = RouteguideClients.Point(; latitude=409146138, longitude=-746188906)
-    feature, status_future = RouteguideClients.GetFeature(client, point)
-    @test_throws gRPCMessageTooLargeException gRPCCheck(status_future)
-    @test !gRPCCheck(status_future; throw_error=false)
+    @test_throws gRPCMessageTooLargeException RouteguideClients.GetFeature(client, point)
 
     iob = IOBuffer()
     show(iob, gRPCMessageTooLargeException(1, 2))
     @test String(take!(iob)) == "gRPMessageTooLargeException(1, 2) - Encountered message size 2 > max configured 1"
-    show(iob, gRPCServiceCallException("test error"))
-    @test String(take!(iob)) == "gRPCServiceCallException - test error"
+    show(iob, gRPCServiceCallException(0, "test error"))
+    @test String(take!(iob)) == "gRPCServiceCallException: 0, test error"
 end
 
 function test_async_get_feature(client::RouteGuideClient)

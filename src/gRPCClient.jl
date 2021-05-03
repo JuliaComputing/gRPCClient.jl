@@ -7,7 +7,7 @@ using ProtoBuf
 import Downloads: Curl
 import ProtoBuf: call_method
 
-export gRPCController, gRPCChannel, gRPCException, gRPCServiceCallException, gRPCMessageTooLargeException, gRPCStatus, gRPCCheck
+export gRPCController, gRPCChannel, gRPCException, gRPCServiceCallException, gRPCMessageTooLargeException, gRPCStatus, gRPCCheck, StatusCode
 
 abstract type gRPCException <: Exception end
 
