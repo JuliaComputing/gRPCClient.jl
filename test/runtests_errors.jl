@@ -1,4 +1,4 @@
-module RouteClientTest
+module ErrorTest
 
 using gRPCClient
 using Downloads
@@ -9,9 +9,9 @@ using Test
 const SERVER_RELEASE = "https://github.com/JuliaComputing/gRPCClient.jl/releases/download/testserver_v0.2/"
 function server_binary()
     arch = (Sys.ARCH === :x86_64) ? "amd64" : "386"
-    filename = Sys.islinux() ? "routeguide_linux_$(arch)" :
-                Sys.iswindows() ? "routeguide_windows_$(arch).exe" :
-                Sys.isapple() ? "routeguide_darwin_$(arch)" :
+    filename = Sys.islinux() ? "grpcerrors_linux_$(arch)" :
+                Sys.iswindows() ? "grpcerrors_windows_$(arch).exe" :
+                Sys.isapple() ? "grpcerrors_darwin_$(arch)" :
                 error("no server binary available for this platform")
     source = string(SERVER_RELEASE, filename)
     destination = joinpath(@__DIR__, filename)
@@ -48,11 +48,11 @@ end
 
 function test_generate()
     @testset "codegen" begin
-        dir = joinpath(@__DIR__, "RouteguideClients")
-        gRPCClient.generate(joinpath(dir, "route_guide.proto"); outdir=dir)
-        @test isfile(joinpath(dir, "route_guide_pb.jl"))
-        @test isfile(joinpath(dir, "routeguide.jl"))
-        @test isfile(joinpath(dir, "RouteguideClients.jl"))
+        dir = joinpath(@__DIR__, "GrpcerrorsClients")
+        gRPCClient.generate(joinpath(@__DIR__, "error_test_server", "grpcerrors", "grpcerrors.proto"); outdir=dir)
+        @test isfile(joinpath(dir, "GrpcerrorsClients.jl"))
+        @test isfile(joinpath(dir, "grpcerrors.jl"))
+        @test isfile(joinpath(dir, "grpcerrors_pb.jl"))
     end
 end
 
@@ -64,20 +64,20 @@ end
 server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
 @info("server endpoint: $server_endpoint")
 
-@testset "RouteGuide" begin
+@testset "Server Errors" begin
     if !Sys.iswindows()
         test_generate()
     else
         @info("skipping code generation on Windows to avoid needing batch file execution permissions")
     end
-    include("test_routeclient.jl")
+    include("test_grpcerrors.jl")
     serverproc = start_server()
 
-    @debug("testing routeclinet...")
+    @info("testing grpcerrors...")
     test_clients(server_endpoint)
 
     kill(serverproc)
     @info("stopped test server")
 end
 
-end # module RouteClientTest
+end # module ErrorTest

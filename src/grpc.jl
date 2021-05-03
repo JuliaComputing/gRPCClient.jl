@@ -11,11 +11,12 @@
 """
 struct gRPCStatus
     success::Bool
+    grpc_status::Int
     message::String
     exception::Union{Nothing,Exception}
 end
 
-gRPCStatus(success::Bool, message::AbstractString) = gRPCStatus(success, string(message), nothing)
+gRPCStatus(success::Bool, grpc_status::Int, message::AbstractString) = gRPCStatus(success, grpc_status, string(message), nothing)
 function gRPCStatus(status_future)
     try
         fetch(status_future)
@@ -24,7 +25,7 @@ function gRPCStatus(status_future)
         while isa(task_exception, TaskFailedException)
             task_exception = task_exception.task.exception
         end
-        gRPCStatus(false, string(task_exception), task_exception)
+        gRPCStatus(false, StatusCode.INTERNAL.code, string(task_exception), task_exception)
     end
 end
 
@@ -39,10 +40,11 @@ It has the following members:
 - `message`: any error message if request was not successful
 """
 struct gRPCServiceCallException <: gRPCException
+    grpc_status::Int
     message::String
 end
 
-Base.show(io::IO, m::gRPCServiceCallException) = print(io, "gRPCServiceCallException - $(m.message)")
+Base.show(io::IO, m::gRPCServiceCallException) = print(io, "gRPCServiceCallException: $(m.grpc_status), $(m.message)")
 
 """
     gRPCCheck(status; throw_error::Bool=true)
@@ -56,7 +58,7 @@ gRPCCheck(status_future; throw_error::Bool=true) = gRPCCheck(gRPCStatus(status_f
 function gRPCCheck(status::gRPCStatus; throw_error::Bool=true)
     if throw_error && !status.success
         if status.exception === nothing
-            throw(gRPCServiceCallException(status.message))
+            throw(gRPCServiceCallException(status.grpc_status, status.message))
         else
             throw(status.exception)
         end
@@ -180,8 +182,13 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
     outchannel, status_future = call_method(channel, service, method, controller, input, Channel{T2}())
     try
         take!(outchannel), status_future
-    catch
-        nothing, status_future
+    catch ex
+        gRPCCheck(status_future)    # check for core issue
+        if isa(ex, InvalidStateException)
+            throw(gRPCServiceCallException("Server closed connection without any response"))
+        else
+            rethrow()               # throw this error if there's no other issue
+        end
     end
 end
 function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::MethodDescriptor, controller::gRPCController, input::Channel{T1}, outchannel::Channel{T2}) where {T1 <: ProtoType, T2 <: ProtoType}

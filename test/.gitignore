@@ -1,3 +1,5 @@
 grpc-go
 server.pid
-runserver_*
+routeguide_*
+grpcerrors_*
+testservers
