@@ -57,24 +57,22 @@ end
 
 function grpc_timeout_header_val(timeout::Real)
     if round(Int, timeout) == timeout
-        timeout_secs = round(Int, timeout)
+        timeout_secs = round(Int64, timeout)
         return "$(timeout_secs)S"
     end
     timeout *= 1000
     if round(Int, timeout) == timeout
-        timeout_millisecs = round(Int, timeout)
+        timeout_millisecs = round(Int64, timeout)
         return "$(timeout_millisecs)m"
     end
     timeout *= 1000
     if round(Int, timeout) == timeout
-        timeout_microsecs = round(Int, timeout)
+        timeout_microsecs = round(Int64, timeout)
         return "$(timeout_microsecs)u"
     end
     timeout *= 1000
-    if round(Int, timeout) == timeout
-        timeout_nanosecs = round(Int, timeout)
-        return "$(timeout_nanosecs)n"
-    end
+    timeout_nanosecs = round(Int64, timeout)
+    return "$(timeout_nanosecs)n"
 end
 
 function grpc_headers(; timeout::Real=Inf)

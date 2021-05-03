@@ -56,6 +56,15 @@ function test_generate()
     end
 end
 
+function test_timeout_header_values()
+    @testset "timeout header" begin
+        @test "100S" == gRPCClient.grpc_timeout_header_val(100)
+        @test "100010m" == gRPCClient.grpc_timeout_header_val(100.01)
+        @test "100000100u" == gRPCClient.grpc_timeout_header_val(100.0001)
+        @test "100000010000n" == gRPCClient.grpc_timeout_header_val(100.00001)
+    end
+end
+
 # switch off host verification for tests
 if isempty(get(ENV, "JULIA_NO_VERIFY_HOSTS", ""))
     ENV["JULIA_NO_VERIFY_HOSTS"] = "**"
@@ -70,6 +79,9 @@ server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
     else
         @info("skipping code generation on Windows to avoid needing batch file execution permissions")
     end
+    
+    test_timeout_header_values()
+
     include("test_routeclient.jl")
     serverproc = start_server()
 
