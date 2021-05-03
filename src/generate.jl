@@ -127,7 +127,7 @@ Generate a gRPC client from protobuf specification file.
 - `outdir`: Directory to write generated code into, created if not present
     already. Existing files if any will be overwtitten.
 """
-function generate(proto::String; outdir::String=pwd())
+function generate(proto::String; outdir::String=pwd(), includes::Vector{String}=String[])
     if !isfile(proto)
         throw(ArgumentError("No such file - $proto"))
     end
@@ -138,14 +138,18 @@ function generate(proto::String; outdir::String=pwd())
     # determine the package name and service name
     package, services = detect_services(proto)
     protodir = dirname(proto)
-    @info("Detected", package, services)
+    includeflag = `-I=$protodir`
+    for inc in includes
+        includeflag = `$includeflag -I=$inc`
+    end
+    @info("Detected", package, services, includes)
 
     # generate protobuf services
     mkpath(outdir)
     bindir = Sys.BINDIR
     pathenv = string(ENV["PATH"], Sys.iswindows() ? ";" : ":", bindir)
     withenv("PATH"=>pathenv) do
-        ProtoBuf.protoc(`-I=$protodir --julia_out=$outdir $proto`)
+        ProtoBuf.protoc(`$includeflag --julia_out=$outdir $proto`)
     end
 
     # include the generated code and detect service method names
