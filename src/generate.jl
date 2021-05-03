@@ -1,11 +1,11 @@
 const package_regex = r"package\s(\S*)[\s]*;.*"
 const service_regex = r"service\s(\S*)[\s]*{.*"
 
-function write_header(io, package, client_module_name)
+function write_header(io, generated_module, package, client_module_name)
     print(io, """module $(client_module_name)
     using gRPCClient
 
-    include("$(package).jl")
+    include("$(generated_module).jl")
     using .$(package)
 
     import Base: show
@@ -127,7 +127,7 @@ Generate a gRPC client from protobuf specification file.
 - `outdir`: Directory to write generated code into, created if not present
     already. Existing files if any will be overwtitten.
 """
-function generate(proto::String; outdir::String=pwd())
+function generate(proto::String; outdir::String=pwd(), includes::Vector{String}=String[])
     if !isfile(proto)
         throw(ArgumentError("No such file - $proto"))
     end
@@ -138,14 +138,18 @@ function generate(proto::String; outdir::String=pwd())
     # determine the package name and service name
     package, services = detect_services(proto)
     protodir = dirname(proto)
-    @info("Detected", package, services)
+    includeflag = `-I=$protodir`
+    for inc in includes
+        includeflag = `$includeflag -I=$inc`
+    end
+    @info("Detected", package, services, includes)
 
     # generate protobuf services
     mkpath(outdir)
     bindir = Sys.BINDIR
     pathenv = string(ENV["PATH"], Sys.iswindows() ? ";" : ":", bindir)
     withenv("PATH"=>pathenv) do
-        ProtoBuf.protoc(`-I=$protodir --julia_out=$outdir $proto`)
+        ProtoBuf.protoc(`$includeflag --julia_out=$outdir $proto`)
     end
 
     # include the generated code and detect service method names
@@ -154,9 +158,9 @@ function generate(proto::String; outdir::String=pwd())
     Main.eval(:(include($generated_module_file)))
 
     # generate the gRPC client code
-    client_module_name = string(titlecase(package; strict=false), "Clients")
+    client_module_name = string(titlecase(generated_module; strict=false), "Clients")
     open(joinpath(outdir, "$(client_module_name).jl"), "w") do grpcservice
-        write_header(grpcservice, package, client_module_name)
+        write_header(grpcservice, generated_module, package, client_module_name)
         for service in services
             methods = get_generated_method_table(string(package, "._", service, "_methods"))
             write_service(grpcservice, package, service, methods)
