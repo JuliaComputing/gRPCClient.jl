@@ -1,11 +1,11 @@
 const package_regex = r"package\s(\S*)[\s]*;.*"
 const service_regex = r"service\s(\S*)[\s]*{.*"
 
-function write_header(io, package, client_module_name)
+function write_header(io, generated_module, package, client_module_name)
     print(io, """module $(client_module_name)
     using gRPCClient
 
-    include("$(package).jl")
+    include("$(generated_module).jl")
     using .$(package)
 
     import Base: show
@@ -158,9 +158,9 @@ function generate(proto::String; outdir::String=pwd(), includes::Vector{String}=
     Main.eval(:(include($generated_module_file)))
 
     # generate the gRPC client code
-    client_module_name = string(titlecase(package; strict=false), "Clients")
+    client_module_name = string(titlecase(generated_module; strict=false), "Clients")
     open(joinpath(outdir, "$(client_module_name).jl"), "w") do grpcservice
-        write_header(grpcservice, package, client_module_name)
+        write_header(grpcservice, generated_module, package, client_module_name)
         for service in services
             methods = get_generated_method_table(string(package, "._", service, "_methods"))
             write_service(grpcservice, package, service, methods)
