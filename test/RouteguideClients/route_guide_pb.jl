@@ -15,7 +15,9 @@ mutable struct Point <: ProtoType
             fldname, fldval = nv
             fldtype = symdict[fldname].jtyp
             (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
-            values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            if fldval !== nothing
+                values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            end
         end
         obj
     end
@@ -54,7 +56,9 @@ mutable struct Rectangle <: ProtoType
             fldname, fldval = nv
             fldtype = symdict[fldname].jtyp
             (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
-            values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            if fldval !== nothing
+                values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            end
         end
         obj
     end
@@ -93,7 +97,9 @@ mutable struct Feature <: ProtoType
             fldname, fldval = nv
             fldtype = symdict[fldname].jtyp
             (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
-            values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            if fldval !== nothing
+                values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            end
         end
         obj
     end
@@ -132,7 +138,9 @@ mutable struct RouteNote <: ProtoType
             fldname, fldval = nv
             fldtype = symdict[fldname].jtyp
             (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
-            values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            if fldval !== nothing
+                values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            end
         end
         obj
     end
@@ -171,7 +179,9 @@ mutable struct RouteSummary <: ProtoType
             fldname, fldval = nv
             fldtype = symdict[fldname].jtyp
             (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
-            values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            if fldval !== nothing
+                values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            end
         end
         obj
     end

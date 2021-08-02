@@ -1,5 +1,5 @@
 const package_regex = r"package\s(\S*)[\s]*;.*"
-const service_regex = r"service\s(\S*)[\s]*{.*"
+const service_regex = r"service\s(\S*)[\s]*.*"
 
 function write_header(io, generated_module, package, client_module_name)
     print(io, """module $(client_module_name)
@@ -99,7 +99,7 @@ function detect_services(proto::String)
             if (regexmatches !== nothing) && (length(regexmatches.captures) == 1)
                 package = string(first(regexmatches.captures))
             end
-        elseif startswith(strip(line), "service")
+        elseif startswith(line, "service")
             regexmatches = match(service_regex, line)
             if (regexmatches !== nothing) && (length(regexmatches.captures) == 1)
                 service = string(first(regexmatches.captures))
