@@ -80,6 +80,7 @@ function grpc_headers(; timeout::Real=Inf)
     headers = LibCURL.curl_slist_append(headers, "User-Agent: $(Curl.USER_AGENT)")
     headers = LibCURL.curl_slist_append(headers, "Content-Type: application/grpc+proto")
     headers = LibCURL.curl_slist_append(headers, "Content-Length:")
+    headers = LibCURL.curl_slist_append(headers, "te: trailers")
     if timeout !== Inf
         headers = LibCURL.curl_slist_append(headers, "grpc-timeout: $(grpc_timeout_header_val(timeout))")
     end
