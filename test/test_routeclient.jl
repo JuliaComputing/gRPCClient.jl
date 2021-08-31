@@ -172,3 +172,21 @@ function test_clients(server_endpoint::String)
     @info("testing async client")
     test_async_client(server_endpoint)
 end
+
+function test_task_safety(server_endpoint::String)
+    @testset "async safety" begin
+        client = RouteGuideBlockingClient(server_endpoint; verbose=false)
+        @sync begin
+            for taskid in 1:5
+                @async begin
+                    test_get_feature(client)
+                    test_list_features(client)
+                    test_record_route(client)
+                    test_route_chat(client)
+                    test_exception()
+                    test_message_length_limit(server_endpoint)
+                end
+            end
+        end
+    end
+end
