@@ -5,6 +5,7 @@ using Downloads
 using Random
 using Sockets
 using Test
+using Base.Threads
 
 const SERVER_RELEASE = "https://github.com/JuliaComputing/gRPCClient.jl/releases/download/testserver_v0.2/"
 function server_binary()
@@ -90,6 +91,11 @@ server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
 
     @debug("testing async safety...")
     test_task_safety(server_endpoint)
+
+    if Threads.nthreads() > 1
+        @debug("testing multithreaded clients...", threadcount=Threads.nthreads())
+        test_threaded_clients(server_endpoint)
+    end
 
     kill(serverproc)
     @info("stopped test server")
