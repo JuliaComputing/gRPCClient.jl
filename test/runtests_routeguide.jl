@@ -88,6 +88,9 @@ server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
     @debug("testing routeclinet...")
     test_clients(server_endpoint)
 
+    @debug("testing async safety...")
+    test_task_safety(server_endpoint)
+
     kill(serverproc)
     @info("stopped test server")
 end
