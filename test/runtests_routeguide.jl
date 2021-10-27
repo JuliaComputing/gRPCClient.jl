@@ -80,7 +80,7 @@ server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
     else
         @info("skipping code generation on Windows to avoid needing batch file execution permissions")
     end
-    
+
     test_timeout_header_values()
 
     include("test_routeclient.jl")

@@ -209,16 +209,35 @@ end
 
 function test_threaded_clients(server_endpoint::String)
     @info("testing threaded blocking client")
-    Threads.@threads for idx in 1:10
-        client = RouteGuideBlockingClient(server_endpoint; verbose=false)
-        test_blocking_client(client)
-        close(client.channel)
+
+    testsetslck = ReentrantLock()
+    topts = Test.get_testset()
+    function recordts(ts)
+        lock(testsetslck) do
+            for result in ts.results
+                Test.record(topts, result)
+            end
+        end
+    end
+
+    Test.TESTSET_PRINT_ENABLE[] = false
+    Threads.@threads for _idx in 1:10
+        ts = @testset "threaded blocking client" begin
+            client = RouteGuideBlockingClient(server_endpoint; verbose=false)
+            test_blocking_client(client)
+            close(client.channel)
+        end
+        recordts(ts)
     end
 
     @info("testing threaded async client")
-    Threads.@threads for idx in 1:10
-        client = RouteGuideClient(server_endpoint; verbose=false)
-        test_async_client(client)
-        close(client.channel)
+    Threads.@threads for _idx in 1:10
+        ts = @testset "threaded async client" begin
+            client = RouteGuideClient(server_endpoint; verbose=false)
+            test_async_client(client)
+            close(client.channel)
+        end
+        recordts(ts)
     end
+    Test.TESTSET_PRINT_ENABLE[] = true
 end
