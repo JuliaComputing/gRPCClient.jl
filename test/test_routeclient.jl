@@ -139,6 +139,14 @@ end
 
 function test_async_client(server_endpoint::String)
     client = RouteGuideClient(server_endpoint; verbose=false)
+    try
+        test_async_client(client)
+    finally
+        close(client.channel)
+    end
+    nothing
+end
+function test_async_client(client::RouteGuideClient)
     @testset "GetFeature" begin
         test_async_get_feature(client)
     end
@@ -146,6 +154,14 @@ end
 
 function test_blocking_client(server_endpoint::String)
     client = RouteGuideBlockingClient(server_endpoint; verbose=false)
+    try
+        test_blocking_client(client)
+    finally
+        close(client.channel)
+    end
+    nothing
+end
+function test_blocking_client(client::RouteGuideBlockingClient)
     @testset "request response" begin
         test_get_feature(client)
     end
@@ -189,4 +205,39 @@ function test_task_safety(server_endpoint::String)
             end
         end
     end
+end
+
+function test_threaded_clients(server_endpoint::String)
+    @info("testing threaded blocking client")
+
+    testsetslck = ReentrantLock()
+    topts = Test.get_testset()
+    function recordts(ts)
+        lock(testsetslck) do
+            for result in ts.results
+                Test.record(topts, result)
+            end
+        end
+    end
+
+    Test.TESTSET_PRINT_ENABLE[] = false
+    Threads.@threads for _idx in 1:10
+        ts = @testset "threaded blocking client" begin
+            client = RouteGuideBlockingClient(server_endpoint; verbose=false)
+            test_blocking_client(client)
+            close(client.channel)
+        end
+        recordts(ts)
+    end
+
+    @info("testing threaded async client")
+    Threads.@threads for _idx in 1:10
+        ts = @testset "threaded async client" begin
+            client = RouteGuideClient(server_endpoint; verbose=false)
+            test_async_client(client)
+            close(client.channel)
+        end
+        recordts(ts)
+    end
+    Test.TESTSET_PRINT_ENABLE[] = true
 end

@@ -42,6 +42,55 @@ function buffer_send_data(input::Channel{T}) where T <: ProtoType
 end
 =#
 
+function share_lock(easy_p::Ptr{Cvoid}, data::curl_lock_data, access::curl_lock_access, userptr::Ptr{Cvoid})
+    share = unsafe_pointer_to_objref(Ptr{CurlShare}(userptr))::CurlShare
+    lock(share.locks[data])
+    nothing
+end
+
+function share_unlock(easy_p::Ptr{Cvoid}, data::curl_lock_data, userptr::Ptr{Cvoid})
+    share = unsafe_pointer_to_objref(Ptr{CurlShare}(userptr))::CurlShare
+    unlock(share.locks[data])
+    nothing
+end
+
+mutable struct CurlShare
+    shptr::Ptr{CURLSH}
+    locks::Vector{ReentrantLock}
+    closed::Bool
+
+    function CurlShare()
+        shptr = curl_share_init()
+        curl_share_setopt(shptr, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE)
+        curl_share_setopt(shptr, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS)
+        curl_share_setopt(shptr, CURLSHOPT_SHARE, CURL_LOCK_DATA_PSL)
+
+        share_lock_cb = @cfunction(share_lock, Cvoid, (Ptr{Cvoid}, Cuint, Cuint, Ptr{Cvoid}))
+        share_unlock_cb = @cfunction(share_unlock, Cvoid, (Ptr{Cvoid}, Cuint, Ptr{Cvoid}))
+
+        @ccall LibCURL.LibCURL_jll.libcurl.curl_share_setopt(shptr::Ptr{CURLSH}, CURLSHOPT_LOCKFUNC::CURLSHoption; share_lock_cb::Ptr{Cvoid})::CURLSHcode
+        @ccall LibCURL.LibCURL_jll.libcurl.curl_share_setopt(shptr::Ptr{CURLSH}, CURLSHOPT_UNLOCKFUNC::CURLSHoption; share_unlock_cb::Ptr{Cvoid})::CURLSHcode
+
+        locks = Vector(undef, CURL_LOCK_DATA_LAST)
+        for idx in 1:CURL_LOCK_DATA_LAST
+            locks[idx] = ReentrantLock()
+        end
+
+        obj = new(shptr, locks, false)
+        userptr = pointer_from_objref(obj)
+        @ccall LibCURL.LibCURL_jll.libcurl.curl_share_setopt(shptr::Ptr{CURLSH}, CURLSHOPT_USERDATA::CURLSHoption; userptr::Ptr{Cvoid})::CURLSHcode
+        obj
+    end
+end
+
+function close(share::CurlShare)
+    if share.closed
+        curl_share_cleanup(share.shptr)
+        share.closed = true
+    end
+    nothing
+end
+
 function send_data(easy::Curl.Easy, input::Channel{T}, max_send_message_length::Int) where T <: ProtoType
     while true
         yield()
@@ -95,7 +144,7 @@ function grpc_request_header(request_timeout::Real)
     end
 end
 
-function easy_handle(maxage::Clong, keepalive::Clong, negotiation::Symbol, revocation::Bool, request_timeout::Real)
+function easy_handle(curlshare::Ptr{CURLSH}, maxage::Clong, keepalive::Clong, negotiation::Symbol, revocation::Bool, request_timeout::Real)
     easy = Curl.Easy()
     http_version = (negotiation === :http2) ? CURL_HTTP_VERSION_2_0 :
                    (negotiation === :http2_tls) ? CURL_HTTP_VERSION_2TLS :
@@ -105,6 +154,7 @@ function easy_handle(maxage::Clong, keepalive::Clong, negotiation::Symbol, revoc
     Curl.setopt(easy, CURLOPT_PIPEWAIT, Clong(1))
     Curl.setopt(easy, CURLOPT_POST, Clong(1))
     Curl.setopt(easy, CURLOPT_HTTPHEADER, grpc_request_header(request_timeout))
+    Curl.setopt(easy, CURLOPT_SHARE, curlshare)
     if !revocation
         Curl.setopt(easy, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NO_REVOKE)
     end
@@ -172,7 +222,7 @@ function set_connect_timeout(easy::Curl.Easy, timeout::Real)
     end
 end
 
-function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, output::Channel{T2};
+function grpc_request(curlshare::Ptr{CURLSH}, downloader::Downloader, url::String, input::Channel{T1}, output::Channel{T2};
         maxage::Clong = typemax(Clong),
         keepalive::Clong = 60,
         negotiation::Symbol = :http2_prior_knowledge,
@@ -182,7 +232,7 @@ function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, o
         max_recv_message_length::Int = DEFAULT_MAX_RECV_MESSAGE_LENGTH,
         max_send_message_length::Int = DEFAULT_MAX_SEND_MESSAGE_LENGTH,
         verbose::Bool = false)::gRPCStatus where {T1 <: ProtoType, T2 <: ProtoType}
-    Curl.with_handle(easy_handle(maxage, keepalive, negotiation, revocation, request_timeout)) do easy
+    Curl.with_handle(easy_handle(curlshare, maxage, keepalive, negotiation, revocation, request_timeout)) do easy
         # setup the request
         Curl.set_url(easy, url)
         Curl.set_timeout(easy, request_timeout)

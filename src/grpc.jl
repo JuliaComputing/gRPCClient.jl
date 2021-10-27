@@ -146,14 +146,20 @@ the server.
 struct gRPCChannel <: ProtoRpcChannel
     downloader::Downloader
     baseurl::String
+    curlshare::CurlShare    # TODO: this should be optional to avoid unnecessary overheads when possible
 
     function gRPCChannel(baseurl::String)
         downloader = Downloader(; grace=Inf)
         Curl.init!(downloader.multi)
         Curl.setopt(downloader.multi, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX)
         endswith(baseurl, '/') && (baseurl = baseurl[1:end-1])
-        new(downloader, baseurl)
+        new(downloader, baseurl, CurlShare())
     end
+end
+
+function close(channel::gRPCChannel)
+    close(channel.curlshare)
+    nothing
 end
 
 function to_delimited_message_bytes(msg, max_message_length::Int)
@@ -193,7 +199,7 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
 end
 function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::MethodDescriptor, controller::gRPCController, input::Channel{T1}, outchannel::Channel{T2}) where {T1 <: ProtoType, T2 <: ProtoType}
     url = string(channel.baseurl, "/", service.name, "/", method.name)
-    status_future = @async grpc_request(channel.downloader, url, input, outchannel;
+    status_future = @async grpc_request(channel.curlshare.shptr, channel.downloader, url, input, outchannel;
         maxage = controller.maxage,
         keepalive = controller.keepalive,
         negotiation = controller.negotiation,
