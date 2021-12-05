@@ -31,12 +31,14 @@ end
 
 """
     struct gRPCServiceCallException
+        grpc_status::Int
         message::String
     end
 
 A `gRPCServiceCallException` is thrown if a gRPC request is not successful.
 It has the following members:
 
+- `grpc_status`: the gRPC status code (0 if no status code was returned)
 - `message`: any error message if request was not successful
 """
 struct gRPCServiceCallException <: gRPCException
@@ -191,7 +193,7 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
     catch ex
         gRPCCheck(status_future)    # check for core issue
         if isa(ex, InvalidStateException)
-            throw(gRPCServiceCallException("Server closed connection without any response"))
+            throw(gRPCServiceCallException(0, "Server closed connection without any response"))
         else
             rethrow()               # throw this error if there's no other issue
         end
