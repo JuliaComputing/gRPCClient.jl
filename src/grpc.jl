@@ -151,11 +151,13 @@ struct gRPCChannel <: ProtoRpcChannel
     curlshare::CurlShare    # TODO: this should be optional to avoid unnecessary overheads when possible
 
     function gRPCChannel(baseurl::String)
-        downloader = Downloader(; grace=Inf)
-        Curl.init!(downloader.multi)
-        Curl.setopt(downloader.multi, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX)
-        endswith(baseurl, '/') && (baseurl = baseurl[1:end-1])
-        new(downloader, baseurl, CurlShare())
+        lock(Downloads.DOWNLOAD_LOCK) do
+            downloader = Downloader(; grace=Inf)
+            Curl.init!(downloader.multi)
+            Curl.setopt(downloader.multi, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX)
+            endswith(baseurl, '/') && (baseurl = baseurl[1:end-1])
+            new(downloader, baseurl, CurlShare())
+        end
     end
 end
 

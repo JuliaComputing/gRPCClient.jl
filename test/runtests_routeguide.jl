@@ -7,6 +7,8 @@ using Sockets
 using Test
 using Base.Threads
 
+include("test_routeclient.jl")
+
 const SERVER_RELEASE = "https://github.com/JuliaComputing/gRPCClient.jl/releases/download/testserver_v0.2/"
 function server_binary()
     arch = (Sys.ARCH === :x86_64) ? "amd64" : "386"
@@ -66,15 +68,15 @@ function test_timeout_header_values()
     end
 end
 
-# switch off host verification for tests
-if isempty(get(ENV, "JULIA_NO_VERIFY_HOSTS", ""))
-    ENV["JULIA_NO_VERIFY_HOSTS"] = "**"
-end
+function runtests()
+    # switch off host verification for tests
+    if isempty(get(ENV, "JULIA_NO_VERIFY_HOSTS", ""))
+        ENV["JULIA_NO_VERIFY_HOSTS"] = "**"
+    end
 
-server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
-@info("server endpoint: $server_endpoint")
+    server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
+    @info("server endpoint: $server_endpoint")
 
-@testset "RouteGuide" begin
     if !Sys.iswindows()
         test_generate()
     else
@@ -83,22 +85,32 @@ server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
 
     test_timeout_header_values()
 
-    include("test_routeclient.jl")
     serverproc = start_server()
 
-    @debug("testing routeclinet...")
-    test_clients(server_endpoint)
+    try
+        @debug("testing routeclinet...")
+        test_clients(server_endpoint)
 
-    @debug("testing async safety...")
-    test_task_safety(server_endpoint)
+        @debug("testing message length limits...")
+        @testset "message length limits" begin
+            test_message_length_limit(server_endpoint)
+        end
 
-    if Threads.nthreads() > 1
-        @debug("testing multithreaded clients...", threadcount=Threads.nthreads())
-        test_threaded_clients(server_endpoint)
+        @debug("testing async safety...")
+        @testset "async safety" begin
+            @sync begin
+                @async test_task_safety(server_endpoint)
+            end
+        end
+
+        if Threads.nthreads() > 1
+            @debug("testing multithreaded clients...", threadcount=Threads.nthreads())
+            test_threaded_clients(server_endpoint)
+        end
+    finally
+        kill(serverproc)
+        @info("stopped test server")
     end
-
-    kill(serverproc)
-    @info("stopped test server")
 end
 
 end # module RouteClientTest

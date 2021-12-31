@@ -217,9 +217,14 @@ function set_connect_timeout(easy::Curl.Easy, timeout::Real)
         timeout_ms = round(Clong, timeout * 1000)
         Curl.setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, timeout_ms)
     else
-        timeout = timeout ≤ typemax(Clong) ? round(Clong, timeout) : Clong(0)
+        timeout = timeout ≤ typemax(Clong) ? round(Clong, timeout) : Clong(0)
         Curl.setopt(easy, CURLOPT_CONNECTTIMEOUT, timeout)
     end
+end
+
+function grpc_debug(typ::String, msg::String)
+    tid = Base.Threads.threadid()
+    println("$tid - $typ: $msg")
 end
 
 function grpc_request(curlshare::Ptr{CURLSH}, downloader::Downloader, url::String, input::Channel{T1}, output::Channel{T2};
@@ -231,21 +236,40 @@ function grpc_request(curlshare::Ptr{CURLSH}, downloader::Downloader, url::Strin
         connect_timeout::Real = 0,
         max_recv_message_length::Int = DEFAULT_MAX_RECV_MESSAGE_LENGTH,
         max_send_message_length::Int = DEFAULT_MAX_SEND_MESSAGE_LENGTH,
-        verbose::Bool = false)::gRPCStatus where {T1 <: ProtoType, T2 <: ProtoType}
-    Curl.with_handle(easy_handle(curlshare, maxage, keepalive, negotiation, revocation, request_timeout)) do easy
+        verbose::Bool = false,
+        debug::Union{Nothing,Bool,Function}=nothing)::gRPCStatus where {T1 <: ProtoType, T2 <: ProtoType}
+    curl_easy = lock(Downloads.DOWNLOAD_LOCK) do
+        easy_handle(curlshare, maxage, keepalive, negotiation, revocation, request_timeout)
+    end
+    Curl.with_handle(curl_easy) do easy
         # setup the request
         Curl.set_url(easy, url)
         Curl.set_timeout(easy, request_timeout)
+        if isdefined(Curl, :set_debug) && (debug !== nothing)
+            if isa(debug, Function)
+                Curl.set_debug(easy, debug)
+            elseif debug === true
+                Curl.set_debug(easy, grpc_debug)
+            end
+        end
         set_connect_timeout(easy, connect_timeout)
         Curl.set_verbose(easy, verbose)
-        Curl.add_upload_callbacks(easy)
-        Downloads.set_ca_roots(downloader, easy)
-
-        # do the request
-        Curl.add_handle(downloader.multi, easy)
-
+        if isdefined(Curl, :add_upload_callbacks)
+            Curl.add_upload_callbacks(easy)
+        else
+            Curl.add_upload_callback(easy)
+        end
+        lock(Downloads.DOWNLOAD_LOCK) do
+            Downloads.set_ca_roots(downloader, easy)
+        end
+        lock(Downloads.DOWNLOAD_LOCK) do
+            # do the request
+            Curl.add_handle(downloader.multi, easy)
+        end
         function cleanup()
-            Curl.remove_handle(downloader.multi, easy)
+            lock(Downloads.DOWNLOAD_LOCK) do
+                Curl.remove_handle(downloader.multi, easy)
+            end
             # though remove_handle sets easy.handle to C_NULL, it does not close output and progress channels
             # we need to close them here to unblock anything waiting on them
             close(easy.output)

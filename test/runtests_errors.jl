@@ -6,6 +6,8 @@ using Random
 using Sockets
 using Test
 
+include("test_grpcerrors.jl")
+
 const SERVER_RELEASE = "https://github.com/JuliaComputing/gRPCClient.jl/releases/download/testserver_v0.2/"
 function server_binary()
     arch = (Sys.ARCH === :x86_64) ? "amd64" : "386"
@@ -56,27 +58,27 @@ function test_generate()
     end
 end
 
-# switch off host verification for tests
-if isempty(get(ENV, "JULIA_NO_VERIFY_HOSTS", ""))
-    ENV["JULIA_NO_VERIFY_HOSTS"] = "**"
-end
+function runtests()
+    # switch off host verification for tests
+    if isempty(get(ENV, "JULIA_NO_VERIFY_HOSTS", ""))
+        ENV["JULIA_NO_VERIFY_HOSTS"] = "**"
+    end
 
-server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
-@info("server endpoint: $server_endpoint")
+    server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
+    @info("server endpoint: $server_endpoint")
 
-@testset "Server Errors" begin
     if !Sys.iswindows()
         test_generate()
     else
         @info("skipping code generation on Windows to avoid needing batch file execution permissions")
     end
-    include("test_grpcerrors.jl")
     serverproc = start_server()
-
-    @info("testing grpcerrors...")
-    test_clients(server_endpoint)
-
-    kill(serverproc)
+    try
+        @info("testing grpcerrors...")
+        test_clients(server_endpoint)
+    finally
+        kill(serverproc)
+    end
     @info("stopped test server")
 end
 
