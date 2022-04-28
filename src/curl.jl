@@ -160,6 +160,21 @@ function recv_data(easy::Curl.Easy, output::Channel{T}, max_recv_message_length:
     close(output)
 end
 
+function set_low_speed_limits(easy::Curl.Easy, low_speed_limit, low_speed_time)
+    low_speed_limit >= 0 || 
+        throw(ArgumentError("`low_speed_limit` must be non-negative, got $(low_speed_limit)."))
+    low_speed_time >= 0 || 
+        throw(ArgumentError("`low_speed_time` must be non-negative, got $(low_speed_time)."))
+    
+    _max = typemax(Clong)
+    low_speed_limit = low_speed_limit <= _max ? round(Clong, low_speed_limit) : _max
+    low_speed_time = low_speed_time <= _max ? round(Clong, low_speed_time) : _max
+    
+    Curl.setopt(easy, CURLOPT_LOW_SPEED_LIMIT, low_speed_limit)    
+    Curl.setopt(easy, CURLOPT_LOW_SPEED_TIME, low_speed_time)
+    return nothing    
+end 
+
 function set_connect_timeout(easy::Curl.Easy, timeout::Real)
     timeout >= 0 ||
         throw(ArgumentError("timeout must be positive, got $timeout"))
@@ -181,12 +196,15 @@ function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, o
         connect_timeout::Real = 0,
         max_recv_message_length::Int = DEFAULT_MAX_RECV_MESSAGE_LENGTH,
         max_send_message_length::Int = DEFAULT_MAX_SEND_MESSAGE_LENGTH,
-        verbose::Bool = false)::gRPCStatus where {T1 <: ProtoType, T2 <: ProtoType}
+        verbose::Bool = false,
+        low_speed_limit::Int = 0,
+        low_speed_time::Int = 0)::gRPCStatus where {T1 <: ProtoType, T2 <: ProtoType}
     Curl.with_handle(easy_handle(maxage, keepalive, negotiation, revocation, request_timeout)) do easy
         # setup the request
         Curl.set_url(easy, url)
         Curl.set_timeout(easy, request_timeout)
         set_connect_timeout(easy, connect_timeout)
+        set_low_speed_limits(easy, low_speed_limit, low_speed_time)
         Curl.set_verbose(easy, verbose)
         Curl.add_upload_callbacks(easy)
         Downloads.set_ca_roots(downloader, easy)

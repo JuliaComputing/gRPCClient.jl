@@ -78,6 +78,8 @@ end
         [ max_recv_message_length = 0, ]
         [ max_send_message_length = 0, ]
         [ verbose::Bool = false, ]
+        [ low_speed_limit = 0, ]
+        [ low_speed_time = 0, ]
     )
 
 Contains settings to control the behavior of gRPC requests.
@@ -98,6 +100,10 @@ Contains settings to control the behavior of gRPC requests.
 - `max_send_message_length`: maximum message length to send (default is
    `max_message_length`, same as setting this to 0)
 - `verbose`: whether to print out verbose communication logs (default false)
+- `low_speed_limit`: speed in Bytes per second below which a connection is 
+  considered slow (default is 0 and disables the setting)
+- `low_speed_time`: duration in seconds for which a slow connection is tolerated
+  (default is 0 and disables the setting)
 """
 struct gRPCController <: ProtoRpcController
     maxage::Clong
@@ -109,7 +115,8 @@ struct gRPCController <: ProtoRpcController
     max_recv_message_length::Int
     max_send_message_length::Int
     verbose::Bool
-
+    low_speed_limit::Int
+    low_speed_time::Int
     function gRPCController(;
             maxage::Integer = 0,
             keepalive::Integer = 60,
@@ -120,15 +127,19 @@ struct gRPCController <: ProtoRpcController
             max_message_length::Integer = DEFAULT_MAX_MESSAGE_LENGTH,
             max_recv_message_length::Integer = 0,
             max_send_message_length::Integer = 0,
-            verbose::Bool = false
+            verbose::Bool = false,
+            low_speed_limit::Integer = 0,
+            low_speed_time::Integer = 0,
         )
         if maxage < 0 || keepalive < 0 || request_timeout < 0 || connect_timeout < 0 || 
-            max_message_length < 0 || max_recv_message_length < 0 || max_send_message_length < 0
+            max_message_length < 0 || max_recv_message_length < 0 || max_send_message_length < 0 ||
+            low_speed_limit < 0 || low_speed_time < 0
             throw(ArgumentError("Invalid gRPCController parameter"))
         end
         (max_recv_message_length == 0) && (max_recv_message_length = max_message_length)
         (max_send_message_length == 0) && (max_send_message_length = max_message_length)
-        new(maxage, keepalive, negotiation, revocation, request_timeout, connect_timeout, max_recv_message_length, max_send_message_length, verbose)
+        return new(maxage, keepalive, negotiation, revocation, request_timeout, connect_timeout,
+            max_recv_message_length, max_send_message_length, verbose,low_speed_limit,low_speed_time)
     end
 end
 
@@ -203,6 +214,8 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
         max_recv_message_length = controller.max_recv_message_length,
         max_send_message_length = controller.max_send_message_length,
         verbose = controller.verbose,
+        low_speed_limit = controller.low_speed_limit,
+        low_speed_time = controller.low_speed_time,
     )
     outchannel, status_future
 end
