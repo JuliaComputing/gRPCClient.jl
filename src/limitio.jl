@@ -8,10 +8,7 @@ end
 LimitIO(io::IO, maxbytes) = LimitIO(io, maxbytes, 0)
 
 function Base.write(io::LimitIO, v::UInt8)
-    if io.n > io.maxbytes
-        @warn "message to long"
-        throw(gRPCMessageTooLargeException(io.maxbytes, io.n))
-    end
+    io.n > io.maxbytes && throw(gRPCMessageTooLargeException(io.maxbytes, io.n))
     nincr = write(io.io, v)
     io.n += nincr
     nincr

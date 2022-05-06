@@ -187,15 +187,13 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
 end
 call_method(channel::gRPCChannel, service::ServiceDescriptor, method::MethodDescriptor, controller::gRPCController, input::Channel{T}) where T <: ProtoType = call_method(channel, service, method, controller, input, get_response_type(method))
 function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::MethodDescriptor, controller::gRPCController, input::Channel{T1}, ::Type{Channel{T2}}) where {T1 <: ProtoType, T2 <: ProtoType}
-    call_method(channel, service, method, controller, input, Channel{T2}(1))
+    call_method(channel, service, method, controller, input, Channel{T2}())
 end
 function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::MethodDescriptor, controller::gRPCController, input::Channel{T1}, ::Type{T2}) where {T1 <: ProtoType, T2 <: ProtoType}
-    outchannel, status_future = call_method(channel, service, method, controller, input, Channel{T2}(1))
+    outchannel, status_future = call_method(channel, service, method, controller, input, Channel{T2}())
     try
-        out = take!(outchannel)
-        #close(outchannel)
-        out, status_future
-    catch exoutput_ch
+        take!(outchannel), status_future
+    catch ex
         gRPCCheck(status_future)    # check for core issue
         if isa(ex, InvalidStateException)
             throw(gRPCServiceCallException("Server closed connection without any response"))
@@ -206,7 +204,7 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
 end
 function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::MethodDescriptor, controller::gRPCController, input::Channel{T1}, outchannel::Channel{T2}) where {T1 <: ProtoType, T2 <: ProtoType}
     url = string(channel.baseurl, "/", service.name, "/", method.name)
-    status_future = grpc_request(channel.downloader, url, input, outchannel;
+    status_future = @async grpc_request(channel.downloader, url, input, outchannel;
         maxage = controller.maxage,
         keepalive = controller.keepalive,
         negotiation = controller.negotiation,
@@ -219,6 +217,5 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
         low_speed_limit = controller.low_speed_limit,
         low_speed_time = controller.low_speed_time,
     )
-    @show status_future
     outchannel, status_future
 end
