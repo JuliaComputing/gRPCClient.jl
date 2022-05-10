@@ -166,7 +166,7 @@ function set_low_speed_limits(easy::Curl.Easy, low_speed_limit, low_speed_time)
     low_speed_time >= 0 || 
         throw(ArgumentError("`low_speed_time` must be non-negative, got $(low_speed_time)."))
     
-    _max = typemax(Clong)
+    _max = typemax(Clong) ÷ 1000
     low_speed_limit = low_speed_limit <= _max ? round(Clong, low_speed_limit) : _max
     low_speed_time = low_speed_time <= _max ? round(Clong, low_speed_time) : _max
     
@@ -182,8 +182,7 @@ function set_connect_timeout(easy::Curl.Easy, timeout::Real)
         timeout_ms = round(Clong, timeout * 1000)
         Curl.setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, timeout_ms)
     else
-        timeout = timeout ≤ typemax(Clong) ? round(Clong, timeout) : Clong(0)
-        Curl.setopt(easy, CURLOPT_CONNECTTIMEOUT, timeout)
+        Curl.setopt(easy, CURLOPT_CONNECTTIMEOUT, Clong(0))
     end
 end
 
