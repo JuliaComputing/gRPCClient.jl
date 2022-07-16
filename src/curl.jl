@@ -188,7 +188,11 @@ function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, o
         Curl.set_timeout(easy, request_timeout)
         set_connect_timeout(easy, connect_timeout)
         Curl.set_verbose(easy, verbose)
-        Curl.add_upload_callbacks(easy)
+        if isdefined(Curl, :add_upload_callbacks)
+            Curl.add_upload_callbacks(easy)
+        else
+            Curl.add_upload_callback(easy)
+        end
         Downloads.set_ca_roots(downloader, easy)
 
         # do the request
