@@ -172,6 +172,34 @@ function set_connect_timeout(easy::Curl.Easy, timeout::Real)
     end
 end
 
+# Prevent reuse of this handle
+# Should be called if an error is detected and/or the server is likely to close connection
+forbid_reuse(easy::Curl.Easy) = Curl.setopt(easy, CURLOPT_FORBID_REUSE, Clong(1))
+
+function get_grpc_status(easy::Curl.Easy)
+    grpc_status = StatusCode.OK.code
+    grpc_message = ""
+
+    # parse the grpc headers
+    @debug("response headers", easy.res_hdrs)
+    for hdr in easy.res_hdrs
+        if startswith(hdr, "grpc-status")
+            grpc_status = parse(Int, strip(last(split(hdr, ':'; limit=2))))
+        elseif startswith(hdr, "grpc-message")
+            grpc_message = string(strip(last(split(hdr, ':'; limit=2))))
+        end
+    end
+
+    if (easy.code == CURLE_OPERATION_TIMEDOUT) && (grpc_status == StatusCode.OK.code)
+        grpc_status = StatusCode.DEADLINE_EXCEEDED.code
+    end
+    if (grpc_status != StatusCode.OK.code) && isempty(grpc_message)
+        grpc_message = grpc_status_message(grpc_status)
+    end
+
+    return grpc_status, grpc_message
+end
+
 function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, output::Channel{T2};
         maxage::Clong = typemax(Clong),
         keepalive::Clong = 60,
@@ -209,62 +237,30 @@ function grpc_request(downloader::Downloader, url::String, input::Channel{T1}, o
             nothing
         end
 
-        # do send recv data
-        if VERSION < v"1.5"
-            cleaned_up = false
-            exception = nothing
-            cleanup_once = (ex)->begin
-                if !cleaned_up
-                    cleaned_up = true
-                    exception = ex
-                    cleanup()
-                end
-            end
-
-            @sync begin
-                @async try
-                    recv_data(easy, output, max_recv_message_length)
-                catch ex
-                    cleanup_once(ex)
-                end
-                @async try
-                    send_data(easy, input, max_send_message_length)
-                catch ex
-                    cleanup_once(ex)
-                end
-            end
-
-            if exception !== nothing
-                throw(exception)
-            end
-        else
-            try
-                Base.Experimental.@sync begin
-                    @async recv_data(easy, output, max_recv_message_length)
-                    @async send_data(easy, input, max_send_message_length)
-                end
-            finally # ensure handle is removed
-                cleanup()
-            end
-        end
-
-        @debug("response headers", easy.res_hdrs)
-
-        # parse the grpc headers
+        exception = nothing
         grpc_status = StatusCode.OK.code
         grpc_message = ""
-        for hdr in easy.res_hdrs
-            if startswith(hdr, "grpc-status")
-                grpc_status = parse(Int, strip(last(split(hdr, ':'; limit=2))))
-            elseif startswith(hdr, "grpc-message")
-                grpc_message = string(strip(last(split(hdr, ':'; limit=2))))
+
+        # do send recv data
+        try
+            Base.Experimental.@sync begin
+                @async recv_data(easy, output, max_recv_message_length)
+                @async send_data(easy, input, max_send_message_length)
             end
+            grpc_status, grpc_message = get_grpc_status(easy)
+            if ((easy.code != CURLE_OK) || (grpc_status != StatusCode.OK.code))
+                forbid_reuse(easy)
+            end
+        catch ex
+            forbid_reuse(easy)
+            exception = ex
+        finally # ensure handle is removed
+            cleanup()
         end
-        if (easy.code == CURLE_OPERATION_TIMEDOUT) && (grpc_status == StatusCode.OK.code)
-            grpc_status = StatusCode.DEADLINE_EXCEEDED.code
-        end
-        if (grpc_status != StatusCode.OK.code) && isempty(grpc_message)
-            grpc_message = grpc_status_message(grpc_status)
+
+        # throw the unwrapped exception if there was one
+        if exception !== nothing
+            throw(exception)
         end
 
         if ((easy.code == CURLE_OK) && (grpc_status == StatusCode.OK.code))

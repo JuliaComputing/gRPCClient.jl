@@ -19,13 +19,13 @@ end
 gRPCStatus(success::Bool, grpc_status::Int, message::AbstractString) = gRPCStatus(success, grpc_status, string(message), nothing)
 function gRPCStatus(status_future)
     try
-        fetch(status_future)
+        return fetch(status_future)
     catch ex
         task_exception = isa(ex, TaskFailedException) ? ex.task.exception : ex
         while isa(task_exception, TaskFailedException)
             task_exception = task_exception.task.exception
         end
-        gRPCStatus(false, StatusCode.INTERNAL.code, string(task_exception), task_exception)
+        return gRPCStatus(false, StatusCode.INTERNAL.code, string(task_exception), task_exception)
     end
 end
 
@@ -181,7 +181,7 @@ end
 function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::MethodDescriptor, controller::gRPCController, input::Channel{T1}, ::Type{T2}) where {T1 <: ProtoType, T2 <: ProtoType}
     outchannel, status_future = call_method(channel, service, method, controller, input, Channel{T2}())
     try
-        take!(outchannel), status_future
+        return (take!(outchannel), status_future)
     catch ex
         gRPCCheck(status_future)    # check for core issue
         if isa(ex, InvalidStateException)
