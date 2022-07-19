@@ -231,6 +231,10 @@ It has the following members:
 - `grpc_status`: grpc status code for this request
 - `message`: any error message if request was not successful
 
+## TODO
+
+- Concurrent use of gRPCClient is still somewhat flaky.
+
 ## Credits
 
 This package was originally developed at [Julia Computing](https://juliacomputing.com)
