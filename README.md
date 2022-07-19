@@ -143,6 +143,7 @@ gRPCController(;
     [ max_message_length = DEFAULT_MAX_MESSAGE_LENGTH, ]
     [ max_recv_message_length = 0, ]
     [ max_send_message_length = 0, ]
+    [ enable_shared_locks = false, ]
     [ verbose::Bool = false, ]
 )
 ```
@@ -163,6 +164,8 @@ gRPCController(;
    `max_message_length`, same as setting this to 0)
 - `max_send_message_length`: maximum message length to send (default is
    `max_message_length`, same as setting this to 0)
+- `enable_shared_locks`: whether to enable locks for using gRPCClient across
+    tasks/threads concurrently (experimental, default is false)
 - `verbose`: whether to print out verbose communication logs (default false)
 
 ### `gRPCChannel`

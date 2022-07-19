@@ -6,6 +6,7 @@ using ProtoBuf
 
 import Downloads: Curl
 import ProtoBuf: call_method
+import Base: close
 
 export gRPCController, gRPCChannel, gRPCException, gRPCServiceCallException, gRPCMessageTooLargeException, gRPCStatus, gRPCCheck, StatusCode
 

@@ -97,6 +97,8 @@ Contains settings to control the behavior of gRPC requests.
    `max_message_length`, same as setting this to 0)
 - `max_send_message_length`: maximum message length to send (default is
    `max_message_length`, same as setting this to 0)
+- `enable_shared_locks`: whether to enable locks for using gRPCClient across
+    tasks/threads concurrently (experimental, default is false)
 - `verbose`: whether to print out verbose communication logs (default false)
 """
 struct gRPCController <: ProtoRpcController
@@ -108,6 +110,7 @@ struct gRPCController <: ProtoRpcController
     connect_timeout::Real
     max_recv_message_length::Int
     max_send_message_length::Int
+    enable_shared_locks::Bool
     verbose::Bool
 
     function gRPCController(;
@@ -120,6 +123,7 @@ struct gRPCController <: ProtoRpcController
             max_message_length::Integer = DEFAULT_MAX_MESSAGE_LENGTH,
             max_recv_message_length::Integer = 0,
             max_send_message_length::Integer = 0,
+            enable_shared_locks::Bool = false,
             verbose::Bool = false
         )
         if maxage < 0 || keepalive < 0 || request_timeout < 0 || connect_timeout < 0 || 
@@ -128,7 +132,17 @@ struct gRPCController <: ProtoRpcController
         end
         (max_recv_message_length == 0) && (max_recv_message_length = max_message_length)
         (max_send_message_length == 0) && (max_send_message_length = max_message_length)
-        new(maxage, keepalive, negotiation, revocation, request_timeout, connect_timeout, max_recv_message_length, max_send_message_length, verbose)
+        new(maxage,
+            keepalive,
+            negotiation,
+            revocation,
+            request_timeout,
+            connect_timeout,
+            max_recv_message_length,
+            max_send_message_length,
+            enable_shared_locks,
+            verbose,
+        )
     end
 end
 
@@ -146,14 +160,20 @@ the server.
 struct gRPCChannel <: ProtoRpcChannel
     downloader::Downloader
     baseurl::String
+    curlshare::CurlShare
 
     function gRPCChannel(baseurl::String)
         downloader = Downloader(; grace=Inf)
         Curl.init!(downloader.multi)
         Curl.setopt(downloader.multi, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX)
         endswith(baseurl, '/') && (baseurl = baseurl[1:end-1])
-        new(downloader, baseurl)
+        new(downloader, baseurl, CurlShare())
     end
+end
+
+function close(channel::gRPCChannel)
+    close(channel.curlshare)
+    nothing
 end
 
 function to_delimited_message_bytes(msg, max_message_length::Int)
@@ -193,7 +213,8 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
 end
 function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::MethodDescriptor, controller::gRPCController, input::Channel{T1}, outchannel::Channel{T2}) where {T1 <: ProtoType, T2 <: ProtoType}
     url = string(channel.baseurl, "/", service.name, "/", method.name)
-    status_future = @async grpc_request(channel.downloader, url, input, outchannel;
+    shptr = controller.enable_shared_locks ? channel.curlshare.shptr : nothing
+    status_future = @async grpc_request(shptr, channel.downloader, url, input, outchannel;
         maxage = controller.maxage,
         keepalive = controller.keepalive,
         negotiation = controller.negotiation,
