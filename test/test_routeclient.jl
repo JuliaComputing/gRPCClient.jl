@@ -108,6 +108,37 @@ function test_exception()
     @test_throws ArgumentError RouteGuideBlockingClient("https://localhost:30000"; maxage=-1)
 end
 
+function test_large_payload(client::RouteGuideBlockingClient)
+    @sync begin
+        long_message1 = "Long message 1 - " * randstring(1000)
+        long_message2 = "Long message 2 - " * randstring(5000)
+
+        notes = RouteguideClients.RouteNote[
+            RouteguideClients.RouteNote(;location=RouteguideClients.Point(;latitude=0, longitude=1), message=long_message1),
+            RouteguideClients.RouteNote(;location=RouteguideClients.Point(;latitude=0, longitude=2), message=long_message2),
+        ]
+        @debug("long messages in route chat")
+        in_channel = Channel{RouteguideClients.RouteNote}(1)
+        @async begin
+            for note in notes
+                put!(in_channel, note)
+            end
+            close(in_channel)
+        end
+        out_channel, status_future = RouteguideClients.RouteChat(client, in_channel)
+        nreceived = 0
+        for note in out_channel
+            nreceived += 1
+            @debug("received long note $note")
+        end
+        gRPCCheck(status_future)
+        @test nreceived > 0
+        @test isa(out_channel, Channel{RouteguideClients.RouteNote})
+        @test !isopen(out_channel)
+        @test !isopen(in_channel)
+    end
+end
+
 function test_message_length_limit(server_endpoint)
     point = RouteguideClients.Point(; latitude=409146138, longitude=-746188906)
 
@@ -157,6 +188,9 @@ function test_blocking_client(server_endpoint::String)
     end
     @testset "streaming send recv" begin
         test_route_chat(client)
+    end
+    @testset "large payloads" begin
+        test_large_payload(client)
     end
     @testset "error handling" begin
         test_exception()
