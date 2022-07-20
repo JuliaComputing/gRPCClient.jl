@@ -215,15 +215,10 @@ function recv_data(easy::Curl.Easy, output::Channel{T}, max_recv_message_length:
 end
 
 function set_connect_timeout(easy::Curl.Easy, timeout::Real)
-    timeout >= 0 ||
+    (0 ≤ timeout ≤ (typemax(Clong) ÷ 1000)) ||
         throw(ArgumentError("timeout must be positive, got $timeout"))
-    if timeout ≤ typemax(Clong) ÷ 1000
-        timeout_ms = round(Clong, timeout * 1000)
-        Curl.setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, timeout_ms)
-    else
-        timeout = timeout ≤ typemax(Clong) ? round(Clong, timeout) : Clong(0)
-        Curl.setopt(easy, CURLOPT_CONNECTTIMEOUT, timeout)
-    end
+    timeout_ms = round(Clong, timeout * 1000)
+    Curl.setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, timeout_ms)
 end
 
 # Prevent reuse of this handle

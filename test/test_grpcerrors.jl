@@ -144,9 +144,13 @@ end
 
 function test_connect_timeout()
     timeout_server_endpoint = "http://10.255.255.1/" # a non routable IP
-    timeout_secs = 5
-    client = GRPCErrorsBlockingClient(timeout_server_endpoint; verbose=false, connect_timeout=timeout_secs)
+
     @testset "connect timeout" begin
+        @test_throws ArgumentError GRPCErrorsBlockingClient(timeout_server_endpoint; verbose=false, connect_timeout=typemax(Clong))
+        @test_throws ArgumentError GRPCErrorsBlockingClient(timeout_server_endpoint; verbose=false, connect_timeout=-1)
+
+        timeout_secs = 5
+        client = GRPCErrorsBlockingClient(timeout_server_endpoint; verbose=false, connect_timeout=timeout_secs)
         data = GrpcerrorsClients.Data(; mode=1, param=0)
         t1 = time()
         try
