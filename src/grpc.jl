@@ -90,8 +90,8 @@ Contains settings to control the behavior of gRPC requests.
    tls), or `:http2` (http2 upgrade)
 - `revocation`: whether to check for certificate recovation (default is true)
 - `request_timeout`: request timeout (seconds)
-- `connect_timeout`: connect timeout (seconds) (default is 300 seconds, same
-   as setting this to 0)
+- `connect_timeout`: connect timeout (seconds) (must be ≤ typemax(Clong)÷1000,
+    default is 300 seconds, same as setting this to 0)
 - `max_message_length`: maximum message length (default is 4MB)
 - `max_recv_message_length`: maximum message length to receive (default is
    `max_message_length`, same as setting this to 0)
@@ -126,7 +126,8 @@ struct gRPCController <: ProtoRpcController
             enable_shared_locks::Bool = false,
             verbose::Bool = false
         )
-        if maxage < 0 || keepalive < 0 || request_timeout < 0 || connect_timeout < 0 || 
+        if maxage < 0 || keepalive < 0 || request_timeout < 0 || 
+            connect_timeout < 0 || connect_timeout > (typemax(Clong) ÷ 1000) ||
             max_message_length < 0 || max_recv_message_length < 0 || max_send_message_length < 0
             throw(ArgumentError("Invalid gRPCController parameter"))
         end
