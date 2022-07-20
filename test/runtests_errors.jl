@@ -71,6 +71,10 @@ server_endpoint = isempty(ARGS) ? "http://localhost:10000/" : ARGS[1]
         @info("skipping code generation on Windows to avoid needing batch file execution permissions")
     end
     include("test_grpcerrors.jl")
+    
+    @info("testing connect timeouts")
+    test_connect_timeout()
+
     serverproc = start_server()
 
     @info("testing grpcerrors...")

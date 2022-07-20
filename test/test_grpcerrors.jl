@@ -142,6 +142,27 @@ function test_blocking_client(server_endpoint::String)
     end
 end
 
+function test_connect_timeout()
+    timeout_server_endpoint = "http://10.255.255.1/" # a non routable IP
+    timeout_secs = 5
+    client = GRPCErrorsBlockingClient(timeout_server_endpoint; verbose=false, connect_timeout=timeout_secs)
+    @testset "connect timeout" begin
+        data = GrpcerrorsClients.Data(; mode=1, param=0)
+        t1 = time()
+        try
+            _, status_future = GrpcerrorsClients.SimpleRPC(client, data)
+            gRPCCheck(status_future)
+            error("error not caught")
+        catch ex
+            t2 = time()
+            @test isa(ex, gRPCServiceCallException)
+            @test ex.message == StatusCode.DEADLINE_EXCEEDED.message
+            @test ex.grpc_status == StatusCode.DEADLINE_EXCEEDED.code
+            @test (timeout_secs - 1) <= (t2 - t1) <= (timeout_secs + 1)
+        end
+    end
+end
+
 function test_clients(server_endpoint::String)
     @info("testing blocking client")
     test_blocking_client(server_endpoint)
