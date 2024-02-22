@@ -118,6 +118,23 @@ function get_generated_method_table(s::String)
     T
 end
 
+# Defining a local protoc to avoid issues with ProtoBuf.protoc,
+# wherein it was using the form `protoc_jll.protoc() do .. end`
+# which is now deprecated and is causing errors in code generation.
+function grpc_protoc(args=``; protoc_path=ProtoBuf.protoc_jll.protoc())
+    plugin_dir = abspath(joinpath(dirname(pathof(ProtoBuf)), "..", "plugin"))
+    plugin = joinpath(plugin_dir, Sys.iswindows() ? "protoc-gen-julia_win.bat" : "protoc-gen-julia")
+
+    ENV′ = copy(ENV)
+    ENV′["PATH"] = string(plugin_dir, Sys.iswindows() ? ";" : ":", ENV′["PATH"])
+    ENV′["JULIA"] = joinpath(Sys.BINDIR, Base.julia_exename())
+    # protobuf plugin uses COVERAGE env var to pass coverage flag to julia
+    # we do not want to pass unintended values that sometimes CI environments set
+    # we also do not intend to trigger coverage in the plugin while running CI in this package
+    ENV′["COVERAGE"] = ""
+    run(setenv(`$protoc_path --plugin=protoc-gen-julia=$plugin $args`, ENV′))
+end
+
 """
     generate(proto::String; outdir::String=pwd())
 
@@ -127,7 +144,7 @@ Generate a gRPC client from protobuf specification file.
 - `outdir`: Directory to write generated code into, created if not present
     already. Existing files if any will be overwtitten.
 """
-function generate(proto::String; outdir::String=pwd(), includes::Vector{String}=String[])
+function generate(proto::String; outdir::String=pwd(), includes::Vector{String}=String[], protoc_path=ProtoBuf.protoc_jll.protoc())
     if !isfile(proto)
         throw(ArgumentError("No such file - $proto"))
     end
@@ -149,7 +166,7 @@ function generate(proto::String; outdir::String=pwd(), includes::Vector{String}=
     bindir = Sys.BINDIR
     pathenv = string(ENV["PATH"], Sys.iswindows() ? ";" : ":", bindir)
     withenv("PATH"=>pathenv) do
-        ProtoBuf.protoc(`$includeflag --julia_out=$outdir $proto`)
+        grpc_protoc(`$includeflag --julia_out=$outdir $proto`; protoc_path=protoc_path)
     end
 
     # include the generated code and detect service method names
