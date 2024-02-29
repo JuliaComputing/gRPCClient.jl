@@ -206,7 +206,8 @@ function call_method(channel::gRPCChannel, service::ServiceDescriptor, method::M
     catch ex
         gRPCCheck(status_future)    # check for core issue
         if isa(ex, InvalidStateException)
-            throw(gRPCServiceCallException("Server closed connection without any response"))
+            status = gRPCStatus(status_future)
+            throw(gRPCServiceCallException(status.grpc_status, "Server closed connection without any response"))
         else
             rethrow()               # throw this error if there's no other issue
         end
